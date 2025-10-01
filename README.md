@@ -13,12 +13,12 @@ Automates pulling assignments from a Gradescope course and adds their **due date
 
 ## 1) Prerequisites
 
-- Python **3.9+**
+- Python 3.9+
 - Google Chrome
-- Matching **ChromeDriver**
-    - Put the binary where your script points to it (default in the code).
-    - Or update `CHROMEDRIVER_PATH` at the top of the script.
-
+- Matching ChromeDriver
+  - Download from ChromeDriver releases
+    - https://chromedriver.chromium.org/downloads
+  - Put the binary wherever you like and reference it in your .env
 ---
 
 ## 2) One-time Google API setup
@@ -37,49 +37,54 @@ Automates pulling assignments from a Gradescope course and adds their **due date
 ## 3) Local setup
 
 ```bash
+git clone <your-repo>
+cd SeleniumPractice
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-# edit .env with your Gradescope email/password
 ```
+Edit `.env` with your config:
 
-Place credentials.json in the project root (same folder as the script).
+```ini
+# Gradescope login
 
-## 4) Configure
-Open gradescope_to_calendar.py and check the variables at the top:
-```python
-COURSE_NAME = "CS70"   # text shown on your Gradescope dashboard tile
-CHROMEDRIVER_PATH = "/absolute/path/to/chromedriver"
-DEFAULT_TZ = "America/Los_Angeles"
-CALENDAR_ID = "c_...@group.calendar.google.com"  # your Gradescope Sync calendar
+GRADESCOPE_EMAIL=you@example.com
+GRADESCOPE_PASSWORD=supersecret
+
+# Config
+COURSE_NAME=CS70
+CHROMEDRIVER_PATH=/absolute/path/to/chromedriver
+DEFAULT_TZ=America/Los_Angeles
+EVENT_DURATION_HOURS=1
+SCOPES=https://www.googleapis.com/auth/calendar
+CALENDAR_ID=c_...@group.calendar.google.com   # from Google Calendar settings
 ```
-Filters (optional):
+> Place `credentials.json` in the project root (same folder as the script).
+
+## 4) Filters
+
+> Accordingly edit filters to match preferences
+
 ```python
 ALLOW_FILTER = None         # e.g. ["homework", "project"] (None = allow all)
 DENY_FILTER  = []           # e.g. ["attendance", "mini-vitamin"]
 ```
 
-To create and use a dedicated calendar:
-In Google Calendar → Create new calendar (“Gradescope Sync”). 
-Copy its Calendar ID (Settings → Integrate calendar) and set CALENDAR_ID.
 
 ## 5) Run
 
 ```bash
-# from project root
 source .venv/bin/activate
 python3 gradescope_to_calendar.py
 ```
-
-Expected output (examples):
-
+Example Output:
 ```less
 Found 16 table rows
 [Row 2] → Homework 5 | Oct 04 at 4:00PM
 [Row 3] → Homework 4 | Sep 27 at 4:00PM
 🗓  Target calendar: Gradescope Sync (id: c_...@group.calendar.google.com)
-✅ Created: CS70: Homework 5 (Due) @ 2025-10-04 16:00:00-07:00 → https://calendar.google.com/...
+✅ Created: CS70: Homework 5 (Due) @ 2025-10-04 16:00:00-07:00
 ↩️  Skip exists: CS70: Homework 4 (Due) @ 2025-09-27 16:00:00-07:00
 Done. Created 1, skipped 1, failed 0.
 ```
@@ -111,9 +116,9 @@ Time zone off: set DEFAULT_TZ to your IANA timezone.
 
 ## 8) Security & Git Hygiene
 ```less
-Never commit secrets: .env, credentials.json, token.json are ignored via .gitignore.
+.env, credentials.json, and token.json are gitignored (don’t commit secrets).
 
-Use a throwaway/limited Google project for personal scripts.
+Only commit .env.example as a template.
 
-This script stores only a private extendedProperties.gsyncId used for de-dupe.
+Use a limited Google project for testing if sharing repo.
 ```
