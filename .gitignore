@@ -1,0 +1,28 @@
+# --- Python cache ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pkl
+
+# --- Virtual environments ---
+.venv/
+env/
+venv/
+
+# --- IDE/editor configs ---
+.idea/
+*.iml
+.vscode/
+
+# --- OS files ---
+.DS_Store
+
+# --- Secrets & tokens ---
+.env
+credentials.json
+token.json
+
+# --- Binaries ---
+chromedriver
+geckodriver
