@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Gradescope \u2192 Calendar Sync",
+  "name": "Docket",
   "version": "1.0.0",
-  "description": "Put your Gradescope due dates on Google Calendar. Uses the session you're already signed in to \u2014 no password needed.",
+  "description": "Your Gradescope deadlines on Google Calendar. Uses the session you're already signed in to, so no password is needed.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAj+XW3iW+cFV6vODF1ltxV2bPWmNAW/evX0zyJ48yUVLsfFfM1IYgCIX79PTltZWPhjU52lYDhIp9HVQ81rZmB6Xaqx53WnhjOrrFwARKN17blFwOA3H5arBxeBHdDUWAVpeDCYnRtOPmHoLPfEpyyG/Y7WaY+m0R4wwmWIIr4CYUb+7Mc8VecwwrKy/lCO89YHzJHxX4aCHZnxf8SNomLliJyLJ8t0Vdh0s1+WzJRnEMmw6fuaINgvK/z8uTkm1ZXX1hc7KsstizgHsDNSglPscYWzUshNSkj3a9yI5EhoxrGcbxh605ouwatNe8RzfbvEHsm+BKq4U1voWe8oNzuwIDAQAB",
   "minimum_chrome_version": "116",
   "icons": {
@@ -12,7 +12,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "Gradescope Calendar Sync",
+    "default_title": "Docket",
     "default_popup": "popup/index.html",
     "default_icon": {
       "16": "icons/icon16.png",

@@ -235,7 +235,7 @@ async function updateBadge(): Promise<void> {
   const b = badgeState(items)
   void chrome.action.setBadgeText({ text: b.text })
   void chrome.action.setBadgeBackgroundColor({ color: b.color })
-  void chrome.action.setTitle({ title: `Gradescope Sync — ${b.title}` })
+  void chrome.action.setTitle({ title: `Docket · ${b.title}` })
 }
 
 async function exportIcs(): Promise<{ ics: string; filename: string; count: number }> {

@@ -1,4 +1,4 @@
-# CLAUDE.md — Gradescope → Calendar Sync
+# CLAUDE.md — Docket
 
 Chrome MV3 extension that syncs Gradescope due dates to Google Calendar. Read this before
 changing anything; several decisions here look arbitrary but are load-bearing.

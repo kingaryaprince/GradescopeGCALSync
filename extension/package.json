@@ -1,8 +1,8 @@
 {
-  "name": "gradescope-calendar-sync",
+  "name": "docket",
   "version": "1.0.0",
   "private": true,
-  "description": "Sync Gradescope assignment due dates to Google Calendar. No passwords, no setup.",
+  "description": "Docket \u2014 Gradescope deadlines on your calendar.",
   "type": "module",
   "scripts": {
     "dev": "vite build --watch --mode development",

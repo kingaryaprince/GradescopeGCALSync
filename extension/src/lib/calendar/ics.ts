@@ -65,7 +65,7 @@ export function buildIcs(
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Gradescope Calendar Sync//EN',
+    'PRODID:-//Docket//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     `X-WR-CALNAME:${esc(calendarName)}`,

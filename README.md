@@ -1,4 +1,6 @@
-# Gradescope → Calendar Sync
+# Docket
+
+**Your Gradescope deadlines on Google Calendar.**
 
 A Chrome extension that puts your Gradescope due dates on Google Calendar.
 

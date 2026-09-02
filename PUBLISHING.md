@@ -48,8 +48,12 @@ Keep the app in **Testing** mode while iterating; add each tester's Google addre
 **Name**
 
 ```
-Gradescope → Calendar Sync
+Docket
 ```
+
+There is already an unrelated `Docket` extension in the store (a bookmarks/notes tool). Store
+names are not unique so this is not a blocker, but you are competing for the search term --
+lean on the short description and screenshots to differentiate.
 
 **Short description** (132 char limit)
 

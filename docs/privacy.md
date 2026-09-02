@@ -1,4 +1,4 @@
-# Privacy Policy — Gradescope → Calendar Sync
+# Privacy Policy — Docket
 
 _Last updated: 2026-09-01_
 
