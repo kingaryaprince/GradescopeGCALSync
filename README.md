@@ -1,124 +1,150 @@
-# Gradescope → Google Calendar Sync
+# Gradescope → Calendar Sync
 
-Automates pulling assignments from a Gradescope course and adds their **due dates** to a Google Calendar.
+A Chrome extension that puts your Gradescope due dates on Google Calendar.
 
-- Logs into Gradescope (email/password).
-- Scrapes **all** assignment types (Homework, Projects, Mini-Vitamins, etc.).
-- Creates calendar events with stable de-dupe so re-runs won’t duplicate.
-- Can target your **primary calendar** or a dedicated one (e.g., “Gradescope Sync”).
+It uses the Gradescope session you're **already signed in to**, so there is no password to
+type, store, or leak — and nothing to install beyond the extension itself.
 
-> ⚠️ **Heads-up:** Web scraping is brittle. If Gradescope changes its HTML, you may need to tweak selectors.
+```
+Install → click the icon → pick your courses → Sync
+```
 
----
+## Why this exists
 
-## 1) Prerequisites
+The original version of this project was a Python script. It worked, but using it meant
+installing Python, downloading a ChromeDriver binary matching your exact Chrome version,
+creating a Google Cloud project, and putting your Gradescope password in a plaintext `.env`.
+It also synced exactly one course, named in an environment variable.
 
-- Python 3.9+
-- Google Chrome
-- Matching ChromeDriver
-  - Download from ChromeDriver releases
-    - https://chromedriver.chromium.org/downloads
-  - Put the binary wherever you like and reference it in your .env
----
+That's fine for one person. It's a wall for everyone else. The old script is preserved in
+[`legacy/`](legacy/).
 
-## 2) One-time Google API setup
+## What it does
 
-1. Go to Google Cloud Console → **APIs & Services** → **Credentials**  
-   Create **OAuth client ID** (type: *Desktop app*).
+- **No password, ever.** Reads Gradescope with your existing browser session.
+- **All your courses.** Pick them from a list; no editing config files.
+- **Two ways out.** Live Google Calendar sync, or a `.ics` download that needs no setup at all.
+- **Updates instead of duplicating.** Move a deadline and the existing event moves with it.
+- **Reminders.** Configurable, defaulting to 24 hours and 1 hour before.
+- **Background sync.** Every few hours, no tab required.
+- **Filters.** Skip the noise (`attendance`, `vitamin`, …).
 
-2. Download the JSON and **save it next to the script** as: credentials.json
-3. On first run, a browser window will ask you to authorize Calendar access.  
-   This creates a local `token.json` for future runs.
+## Install
 
-> If you change the OAuth scopes later, delete `token.json` and run again.
-
----
-
-## 3) Local setup
+### From source
 
 ```bash
-git clone <your-repo>
-cd SeleniumPractice
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-```
-Edit `.env` with your config:
-
-```ini
-# Gradescope login
-
-GRADESCOPE_EMAIL=you@example.com
-GRADESCOPE_PASSWORD=supersecret
-
-# Config
-COURSE_NAME=CS70
-CHROMEDRIVER_PATH=/absolute/path/to/chromedriver
-DEFAULT_TZ=America/Los_Angeles
-EVENT_DURATION_HOURS=1
-SCOPES=https://www.googleapis.com/auth/calendar
-CALENDAR_ID=c_...@group.calendar.google.com   # from Google Calendar settings
-```
-> Place `credentials.json` in the project root (same folder as the script).
-
-## 4) Filters
-
-> Accordingly edit filters to match preferences
-
-```python
-ALLOW_FILTER = None         # e.g. ["homework", "project"] (None = allow all)
-DENY_FILTER  = []           # e.g. ["attendance", "mini-vitamin"]
+cd extension
+npm install
+npm run build
 ```
 
+Then in Chrome: **chrome://extensions** → enable **Developer mode** → **Load unpacked** →
+select `extension/dist`.
 
-## 5) Run
+The `.ics` export works immediately. Live Google Calendar sync needs an OAuth client, below.
+
+### Google OAuth client (one-time, for the developer)
+
+Users never do this. You do it once so the extension can talk to Calendar.
+
+1. Load the unpacked extension and copy its **ID** from `chrome://extensions`.
+2. [Google Cloud Console](https://console.cloud.google.com/) → **APIs & Services**
+   → enable the **Google Calendar API**.
+3. **Credentials** → **Create credentials** → **OAuth client ID** → type **Chrome Extension**,
+   and paste the extension ID.
+4. Put the client ID in `extension/src/manifest.json` under `oauth2.client_id`, then rebuild.
+
+To keep the extension ID stable across reloads, add your `key` to the manifest — otherwise the
+ID changes and OAuth stops matching.
+
+#### Scopes, and why each one
+
+| Scope | Why |
+|---|---|
+| `calendar.app.created` | Create and manage a dedicated "Gradescope" calendar. Grants no access to your other calendars. |
+| `calendar.events` | Write events, if you point the extension at a calendar you already have. |
+| `calendar.calendarlist.readonly` | Populate the calendar picker in Settings. |
+
+The recommended setup is **"Create a separate calendar"** in Settings: deadlines stay out of
+your main calendar, and you can hide or delete all of them at once.
+
+## Privacy
+
+Your Gradescope data goes from your browser to your Google Calendar. There is no server in the
+middle, because there is no server. See [docs/privacy.md](docs/privacy.md).
+
+## Development
 
 ```bash
-source .venv/bin/activate
-python3 gradescope_to_calendar.py
-```
-Example Output:
-```less
-Found 16 table rows
-[Row 2] → Homework 5 | Oct 04 at 4:00PM
-[Row 3] → Homework 4 | Sep 27 at 4:00PM
-🗓  Target calendar: Gradescope Sync (id: c_...@group.calendar.google.com)
-✅ Created: CS70: Homework 5 (Due) @ 2025-10-04 16:00:00-07:00
-↩️  Skip exists: CS70: Homework 4 (Due) @ 2025-09-27 16:00:00-07:00
-Done. Created 1, skipped 1, failed 0.
+cd extension
+npm test          # 60 tests, no network or browser needed
+npm run dev       # rebuild on change
+npm run typecheck
+npm run zip       # release.zip for the Web Store
 ```
 
-## 6) Automation (Optional)
-### MacOS/Linux (cron)
-```bash
-crontab -e
-# run twice a day at 8:00 and 20:00
-0 8,20 * * * /bin/bash -lc 'cd /path/to/project && source .venv/bin/activate && python3 gradescope_to_calendar.py >> sync.log 2>&1'
+### Layout
+
 ```
-### Windows (Task Scheduler): create a task that runs:
-```php-template
-<path>\python.exe <project>\gradescope_to_calendar.py
-```
-
-## 7) Troubleshooting
-```less
-403 insufficientPermissions: you changed scopes. Delete token.json and run again.
-
-No assignments matched: Gradescope layout shifted. Re-run and check console logs (rows print). Adjust selectors in scrape_assignments.
-
-Wrong ChromeDriver: ensure driver version matches Chrome (chromedriver --version).
-
-Events on wrong calendar: confirm CALENDAR_ID and your Google account on the OAuth consent screen.
-
-Time zone off: set DEFAULT_TZ to your IANA timezone.
+extension/src/
+  background.ts              orchestration, scheduling, messaging
+  offscreen.ts               fetches + parses Gradescope (service workers have no DOM)
+  lib/gradescope/parse.ts    HTML → assignments, layered strategies
+  lib/gradescope/dates.ts    due-date text → Date, with year inference
+  lib/calendar/gcal.ts       Google Calendar API
+  lib/calendar/ics.ts        RFC 5545 writer
+  lib/sync.ts                reconciler (create / update / delete)
+  popup/  options/           UI
 ```
 
-## 8) Security & Git Hygiene
-```less
-.env, credentials.json, and token.json are gitignored (don’t commit secrets).
+### How the tricky parts work
 
-Only commit .env.example as a template.
+**No password.** Gradescope sets `_gradescope_session` with `SameSite=None; Secure`, so the
+cookie is sent on a cross-site request from the extension's origin. The extension reads pages
+as you, without ever seeing your credentials.
 
-Use a limited Google project for testing if sharing repo.
-```
+**Why an offscreen document.** MV3 service workers have no `DOMParser`. Fetching and parsing
+happen in an offscreen document, which also keeps the user's Gradescope cookie in play. No
+visible tab is opened.
+
+**Parsing is layered.** Gradescope has no public API and no stable markup contract, so
+`parse.ts` tries semantic class names first, then falls back to reading the assignment table by
+its column headers. Each result reports which strategy fired; a fallback shows up as a warning
+in Settings, so layout changes are visible before they become missing assignments.
+
+**Year inference.** Gradescope renders due dates without a year ("Oct 04 at 4:00PM"). The old
+script assumed the current calendar year, which broke every December: a spring assignment due
+"Jan 15" resolved eleven months into the past. Now the term window decides when known, and
+otherwise the nearest candidate year to today wins.
+
+**Stable keys.** Each event carries a key of `gsync:v1:c<course>:a<assignment>`, deliberately
+excluding the due date. The old script's key included the due timestamp, so moving a deadline
+looked like a new assignment and produced a duplicate. Reconciliation only ever reads or
+modifies events tagged as ours.
+
+**Deleting is conservative.** Stale events are removed only for courses that were read
+successfully this run, or that you deselected. If a course fails to load, its events are left
+alone rather than deleted.
+
+## Status
+
+Working and tested: date inference, parsing (against fixtures), the ICS writer, and the
+reconciler — 60 unit tests.
+
+Needs verification against a live account: the exact Gradescope selectors. Gradescope's real
+logged-in HTML isn't public, so the semantic selectors are best-effort with a structural
+fallback behind them. If your courses or assignments come up empty, that's the place to look —
+the fallback warning in Settings will say so.
+
+## Publishing checklist
+
+- [ ] Set a real `oauth2.client_id` and a fixed `key` in the manifest
+- [ ] Verify selectors against a live Gradescope account
+- [ ] Publish `docs/privacy.md` via GitHub Pages (required for OAuth verification)
+- [ ] Submit the OAuth consent screen for verification (sensitive scopes; unverified apps are capped at 100 users)
+- [ ] `npm run zip` → upload to the Chrome Web Store
+
+## License
+
+MIT — see [LICENSE](LICENSE).

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Gradescope Calendar Sync — Settings</title>
+    <link rel="stylesheet" href="../popup/popup.css" />
+    <link rel="stylesheet" href="./options.css" />
+  </head>
+  <body class="opts">
+    <main>
+      <header class="hdr">
+        <img src="../icons/icon48.png" alt="" width="32" height="32" />
+        <h1>Gradescope Calendar Sync</h1>
+      </header>
+
+      <div id="banner" class="banner" hidden></div>
+
+      <section class="card">
+        <p class="card-title">Google Calendar</p>
+        <div class="row-between">
+          <p class="muted" id="conn-state">Checking…</p>
+          <span>
+            <button id="connect" class="primary compact">Connect</button>
+            <button id="disconnect" class="compact" hidden>Disconnect</button>
+          </span>
+        </div>
+        <label class="field">
+          <span>Write events to</span>
+          <select id="calendar"></select>
+        </label>
+        <div class="row-gap">
+          <input id="new-cal-name" type="text" placeholder="Gradescope" />
+          <button id="new-cal" class="compact">Create a separate calendar</button>
+        </div>
+        <p class="hint">
+          A separate calendar keeps deadlines out of your main one, and you can hide or delete
+          them all at once.
+        </p>
+      </section>
+
+      <section class="card">
+        <p class="card-title">Events</p>
+        <label class="field">
+          <span>Event length</span>
+          <span class="inline">
+            <input id="duration" type="number" min="0" max="480" step="5" /> minutes
+          </span>
+        </label>
+        <label class="field">
+          <span>Reminders</span>
+          <input id="reminders" type="text" placeholder="1440, 60" />
+        </label>
+        <p class="hint">Minutes before the deadline, comma separated. Leave blank for none.</p>
+        <label class="check">
+          <input id="prefix" type="checkbox" /> Put the course name in the event title
+        </label>
+      </section>
+
+      <section class="card">
+        <p class="card-title">What gets synced</p>
+        <label class="field">
+          <span>Only titles containing</span>
+          <input id="allow" type="text" placeholder="any (leave blank)" />
+        </label>
+        <label class="field">
+          <span>Never sync titles containing</span>
+          <input id="deny" type="text" placeholder="e.g. attendance, vitamin" />
+        </label>
+        <label class="check">
+          <input id="remove-stale" type="checkbox" />
+          Remove events when an assignment disappears from Gradescope
+        </label>
+      </section>
+
+      <section class="card">
+        <p class="card-title">Schedule</p>
+        <label class="check">
+          <input id="auto" type="checkbox" /> Sync automatically in the background
+        </label>
+        <label class="field">
+          <span>How often</span>
+          <span class="inline">
+            every <input id="auto-hours" type="number" min="1" max="168" /> hours
+          </span>
+        </label>
+      </section>
+
+      <section class="card">
+        <p class="card-title">Last sync</p>
+        <pre id="report" class="report muted">No sync yet.</pre>
+      </section>
+
+      <footer class="save-bar">
+        <button id="save" class="primary">Save settings</button>
+        <span id="saved" class="muted"></span>
+      </footer>
+    </main>
+    <script type="module" src="./options.ts"></script>
+  </body>
+</html>

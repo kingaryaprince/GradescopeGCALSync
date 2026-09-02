@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Gradescope Calendar Sync</title>
+    <link rel="stylesheet" href="./popup.css" />
+  </head>
+  <body>
+    <header class="hdr">
+      <img src="../icons/icon32.png" alt="" width="24" height="24" />
+      <h1>Gradescope Sync</h1>
+      <button id="settings" class="icon-btn" title="Settings" aria-label="Settings">⚙</button>
+    </header>
+
+    <div id="banner" class="banner" hidden></div>
+
+    <section id="connect" class="card" hidden>
+      <p class="card-title">Connect Google Calendar</p>
+      <p class="muted">One-time approval so events can be written to your calendar.</p>
+      <button id="connect-btn" class="primary">Connect Google Calendar</button>
+    </section>
+
+    <section class="card">
+      <div class="row-between">
+        <p class="card-title">Courses</p>
+        <span class="tools">
+          <button id="sel-all" class="link-btn">All</button>
+          <span class="sep">·</span>
+          <button id="sel-none" class="link-btn">None</button>
+          <span class="sep">·</span>
+          <button id="refresh" class="link-btn">Refresh</button>
+        </span>
+      </div>
+      <div id="courses" class="courses">
+        <p class="muted" id="courses-empty">Loading your courses…</p>
+      </div>
+    </section>
+
+    <div class="actions">
+      <button id="sync" class="primary">Sync now</button>
+      <button id="ics" class="secondary" title="Download a calendar file you can import anywhere">
+        Download .ics
+      </button>
+    </div>
+
+    <footer id="status" class="status muted">Ready.</footer>
+
+    <script type="module" src="./popup.ts"></script>
+  </body>
+</html>
