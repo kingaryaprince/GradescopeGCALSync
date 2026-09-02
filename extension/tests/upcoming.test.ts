@@ -297,3 +297,42 @@ describe('filterVisible', () => {
     expect(filterVisible([a({ dueIso: 'nope' })], { now: NOW3 })).toEqual([])
   })
 })
+
+describe('collapsing the overdue group', () => {
+  const NOW4 = new Date('2026-09-02T12:00:00')
+  const items = [
+    a({ dueIso: iso('2026-08-30T16:00:00'), key: 'late', title: 'Missed' }),
+    a({ dueIso: iso('2026-09-04T16:00:00'), key: 'next', title: 'Upcoming' }),
+  ]
+  const titles = (v: ReturnType<typeof buildUpcoming>) =>
+    v.groups.flatMap((g) => g.items.map((i) => i.title))
+
+  it('removes the overdue group from the list', () => {
+    expect(titles(buildUpcoming(items, { now: NOW4, hideOverdue: true }))).toEqual(['Upcoming'])
+    expect(titles(buildUpcoming(items, { now: NOW4 }))).toEqual(['Missed', 'Upcoming'])
+  })
+
+  // Collapsing is visual only, so the work still exists and still counts.
+  it('still reports how many are overdue', () => {
+    expect(buildUpcoming(items, { now: NOW4, hideOverdue: true }).overdueCount).toBe(1)
+  })
+
+  it('leaves the badge untouched, unlike dismissing', () => {
+    expect(badgeState(items, { now: NOW4 }).text).toBe('1')
+    expect(badgeState(items, { now: NOW4 }).color).toBe('#cf222e')
+  })
+
+  it('does not miscount the overflow when collapsed', () => {
+    const many = [
+      ...Array.from({ length: 3 }, (_, i) =>
+        a({ dueIso: iso('2026-08-2' + (i + 1) + 'T16:00:00'), key: `o${i}`, title: `Old${i}` }),
+      ),
+      ...Array.from({ length: 3 }, (_, i) =>
+        a({ dueIso: iso('2026-09-0' + (i + 3) + 'T16:00:00'), key: `n${i}`, title: `New${i}` }),
+      ),
+    ]
+    const v = buildUpcoming(many, { now: NOW4, hideOverdue: true, max: 2 })
+    expect(v.groups.flatMap((g) => g.items)).toHaveLength(2)
+    expect(v.hiddenCount).toBe(1)
+  })
+})

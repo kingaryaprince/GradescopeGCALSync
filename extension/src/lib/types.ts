@@ -88,6 +88,12 @@ export interface SyncSettings {
    * late submission, short enough that dead work does not pile up.
    */
   hideOverdueAfterDays: number
+  /**
+   * Popup view toggles. Persisted so they survive closing the popup, which
+   * in-memory state did not.
+   */
+  hideDoneInList: boolean
+  hideOverdueInList: boolean
   /** 'auto' follows the OS; the others override it. */
   theme: 'auto' | 'light' | 'dark'
 }
@@ -108,6 +114,8 @@ export const DEFAULT_SETTINGS: SyncSettings = {
   skipSubmitted: false,
   theme: 'auto',
   hideOverdueAfterDays: 7,
+  hideDoneInList: false,
+  hideOverdueInList: false,
 }
 
 export interface SyncStats {

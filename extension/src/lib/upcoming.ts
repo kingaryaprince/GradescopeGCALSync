@@ -57,6 +57,14 @@ export interface UpcomingOptions extends VisibilityOptions {
   days?: number
   /** Cap on rendered rows; the remainder is reported as hiddenCount. */
   max?: number
+  /**
+   * Collapse the overdue group out of view.
+   *
+   * Purely visual, unlike `dismissed` and `hideOverdueAfterDays`: the work
+   * still exists, so it keeps counting toward the badge. This is the
+   * non-destructive way to tidy the list.
+   */
+  hideOverdue?: boolean
 }
 
 /** Applies the visibility rules shared by the deadline list and the badge. */
@@ -135,8 +143,10 @@ export function buildUpcoming(
 
   items.sort((a, b) => a.due.getTime() - b.due.getTime())
 
+  // Counted before collapsing, so the UI can report how many are hidden.
   const overdueCount = items.filter((i) => i.overdue).length
-  const shown = items.slice(0, max)
+  const visible = opts.hideOverdue ? items.filter((i) => !i.overdue) : items
+  const shown = visible.slice(0, max)
 
   // Group in chronological order, with everything overdue collected up front.
   const groups: UpcomingGroup[] = []
@@ -147,7 +157,7 @@ export function buildUpcoming(
     else groups.push({ label, items: [item] })
   }
 
-  return { groups, hiddenCount: items.length - shown.length, overdueCount }
+  return { groups, hiddenCount: visible.length - shown.length, overdueCount }
 }
 
 export interface BadgeState {

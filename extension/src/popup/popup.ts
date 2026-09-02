@@ -33,6 +33,7 @@ const els = {
   status: $<HTMLElement>('status'),
   upcoming: $<HTMLDivElement>('upcoming'),
   toggleSubmitted: $<HTMLButtonElement>('toggle-submitted'),
+  toggleOverdue: $<HTMLButtonElement>('toggle-overdue'),
   toggleCourses: $<HTMLButtonElement>('toggle-courses'),
   coursesCard: $<HTMLElement>('courses-card'),
   settings: $<HTMLButtonElement>('settings'),
@@ -103,6 +104,7 @@ let cachedDeadlines: CachedAssignment[] = []
 let dismissedKeys: string[] = []
 let overdueGraceDays = 0
 let hideSubmitted = false
+let hideOverdue = false
 
 const timeOf = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
@@ -209,6 +211,7 @@ function showEmptyPrompt(): void {
 function renderUpcoming(): void {
   els.upcoming.replaceChildren()
   els.toggleSubmitted.textContent = hideSubmitted ? 'Show done' : 'Hide done'
+  els.toggleOverdue.textContent = hideOverdue ? 'Show overdue' : 'Hide overdue'
 
   if (cachedDeadlines.length === 0) {
     const p = document.createElement('p')
@@ -220,9 +223,12 @@ function renderUpcoming(): void {
 
   const view = buildUpcoming(cachedDeadlines, {
     hideSubmitted,
+    hideOverdue,
     dismissed: dismissedKeys,
     hideOverdueAfterDays: overdueGraceDays,
   })
+  // Only meaningful when something overdue exists to hide.
+  els.toggleOverdue.hidden = view.overdueCount === 0 && !hideOverdue
   if (view.groups.length === 0) {
     const p = document.createElement('p')
     p.className = 'muted'
@@ -240,6 +246,13 @@ function renderUpcoming(): void {
     wrap.append(label)
     for (const item of g.items) wrap.append(upcomingRow(item))
     els.upcoming.append(wrap)
+  }
+
+  if (hideOverdue && view.overdueCount > 0) {
+    const note = document.createElement('p')
+    note.className = 'up-more'
+    note.textContent = `${view.overdueCount} overdue hidden`
+    els.upcoming.append(note)
   }
 
   if (view.hiddenCount > 0) {
@@ -406,6 +419,8 @@ async function init(): Promise<void> {
   cachedDeadlines = deadlines.items
   dismissedKeys = dismissed
   overdueGraceDays = settings.hideOverdueAfterDays
+  hideSubmitted = settings.hideDoneInList
+  hideOverdue = settings.hideOverdueInList
   paintThemeButton(settings.theme)
   renderUpcoming()
   // Nothing to show yet means the user still has setup to do; lead with courses.
@@ -473,6 +488,13 @@ els.refresh.addEventListener('click', () => void refreshCourses())
 els.toggleSubmitted.addEventListener('click', () => {
   hideSubmitted = !hideSubmitted
   renderUpcoming()
+  void saveSettings({ hideDoneInList: hideSubmitted })
+})
+
+els.toggleOverdue.addEventListener('click', () => {
+  hideOverdue = !hideOverdue
+  renderUpcoming()
+  void saveSettings({ hideOverdueInList: hideOverdue })
 })
 els.toggleCourses.addEventListener('click', () => {
   els.coursesCard.hidden = !els.coursesCard.hidden
