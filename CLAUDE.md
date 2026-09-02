@@ -26,6 +26,12 @@ cd extension && npm run build     # then reload on chrome://extensions
 npm run dev                       # rebuild on every save (still reload for the parts below)
 ```
 
+**Popup and options pages are re-read from disk on every open. The service worker and the
+manifest are not.** So editing and rebuilding gives you new UI code talking to a stale
+background worker, which shows up as "this build does not handle X" for any message added
+since the worker started -- and as a stale name and icon in the toolbar. Click **reload** on
+the extension card; reopening the popup is not enough.
+
 What each change needs after a rebuild:
 
 | Changed | To see it |

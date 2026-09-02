@@ -301,8 +301,22 @@ chrome.runtime.onMessage.addListener(
           case 'CREATE_CALENDAR':
             sendResponse(ok({ calendar: await createCalendar(msg.name) }))
             break
-          default:
-            sendResponse(fail(new Error('Unknown request')))
+          default: {
+            // Naming the request matters: during development the popup is
+            // re-read from disk on every open while the service worker is not,
+            // so a new popup can talk to a stale worker. "Unknown request"
+            // alone gives no hint that an extension reload is what is needed.
+            const unknown = (msg as { type?: string }).type ?? '(none)'
+            sendResponse(
+              fail(
+                new Error(
+                  `This build does not handle "${unknown}". Reload the extension on ` +
+                    'chrome://extensions and try again.',
+                ),
+              ),
+            )
+            break
+          }
         }
       } catch (err) {
         sendResponse(fail(err))
