@@ -79,3 +79,25 @@ button:disabled { opacity: .55; cursor: default; }
 .courses summary::-webkit-details-marker { display: none; }
 .courses summary::before { content: "▸ "; }
 .courses details[open] summary::before { content: "▾ "; }
+
+/* --- upcoming dashboard --- */
+.upcoming { max-height: 300px; overflow-y: auto; margin-top: 6px; }
+.up-group { margin-bottom: 8px; }
+.up-label {
+  font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--muted); margin: 6px 0 3px; padding-bottom: 2px; border-bottom: 1px solid var(--line);
+}
+.up-group.overdue .up-label { color: var(--err); border-color: var(--err); }
+.up-row {
+  display: flex; align-items: baseline; gap: 8px; padding: 4px 2px;
+  text-decoration: none; color: inherit; border-radius: 4px;
+}
+.up-row:hover { background: var(--line); }
+.up-main { flex: 1; min-width: 0; }
+.up-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.up-course { color: var(--muted); font-size: 11px; }
+.up-time { flex: none; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.up-row.done .up-title { text-decoration: line-through; opacity: .55; }
+.up-row.done .up-time { opacity: .55; }
+.up-check { flex: none; color: var(--ok); font-size: 11px; }
+.up-more { color: var(--muted); font-size: 12px; margin: 6px 0 0; }

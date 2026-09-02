@@ -32,6 +32,7 @@ export type Request =
   | { type: 'SCRAPE_ASSIGNMENTS'; course: Course }
   | { type: 'SYNC_NOW' }
   | { type: 'REFRESH_COURSES' }
+  | { type: 'REFRESH_DEADLINES' }
   | { type: 'EXPORT_ICS' }
   | { type: 'CONNECT_GOOGLE' }
   | { type: 'DISCONNECT_GOOGLE' }

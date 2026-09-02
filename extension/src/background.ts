@@ -9,6 +9,7 @@ import {
 import { fromWire, fail, ok, type Request, type Response, type ScrapeAssignmentsData, type ScrapeCoursesData } from './lib/messages'
 import {
   loadCourseCache,
+  saveAssignmentCache,
   loadSettings,
   saveCourseCache,
   saveReport,
@@ -17,6 +18,7 @@ import {
 } from './lib/storage'
 import { buildSnapshot, diffForNotifications, fireNotices, registerNotificationClicks, type Snapshot } from './lib/notify'
 import { buildDesiredEvents, reconcile, shouldInclude } from './lib/sync'
+import type { CachedAssignment } from './lib/upcoming'
 import type { Assignment, Course, SyncReport } from './lib/types'
 
 const OFFSCREEN_PATH = 'offscreen.html'
@@ -112,6 +114,35 @@ async function collectAssignments(courses: Course[]): Promise<{
   return { entries, scrapedOk, warnings }
 }
 
+/** Flattens scraped assignments into the shape the popup dashboard renders. */
+function toCache(entries: Array<{ assignment: Assignment; course: Course }>): CachedAssignment[] {
+  return entries
+    .filter((e) => e.assignment.due)
+    .map(({ assignment: a, course }) => ({
+      key: a.key,
+      title: a.title,
+      courseId: a.courseId,
+      courseShortName: course.shortName,
+      dueIso: a.due!.toISOString(),
+      submitted: a.submitted,
+      ...(a.url ? { url: a.url } : {}),
+    }))
+}
+
+/**
+ * Scrapes deadlines and updates the popup cache without touching Google
+ * Calendar, so the dashboard works before (or without) connecting an account.
+ */
+async function refreshDeadlines(): Promise<{ count: number; warnings: string[] }> {
+  const settings = await loadSettings()
+  const all = await refreshCourses()
+  const selected = all.filter((c) => settings.selectedCourseIds.includes(c.id))
+  const { entries, warnings } = await collectAssignments(selected)
+  const cache = toCache(entries)
+  await saveAssignmentCache(cache)
+  return { count: cache.length, warnings }
+}
+
 // ------------------------------- sync -------------------------------
 
 async function runSync(): Promise<SyncReport> {
@@ -151,6 +182,8 @@ async function runSync(): Promise<SyncReport> {
     // off (so their leftover events get cleaned up).
     const deletable = new Set(scrapedOk)
     for (const c of all) if (!settings.selectedCourseIds.includes(c.id)) deletable.add(c.id)
+
+    await saveAssignmentCache(toCache(readEntries))
 
     const backend = new GoogleCalendarBackend(settings.calendarId)
     const { stats, warnings: syncWarnings } = await reconcile(desired, backend, {
@@ -223,6 +256,9 @@ chrome.runtime.onMessage.addListener(
             break
           case 'REFRESH_COURSES':
             sendResponse(ok({ courses: await refreshCourses() }))
+            break
+          case 'REFRESH_DEADLINES':
+            sendResponse(ok(await refreshDeadlines()))
             break
           case 'EXPORT_ICS':
             sendResponse(ok(await exportIcs()))

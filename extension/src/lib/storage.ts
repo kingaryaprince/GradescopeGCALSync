@@ -1,3 +1,4 @@
+import type { CachedAssignment } from './upcoming'
 import { DEFAULT_SETTINGS, type Course, type SyncReport, type SyncSettings } from './types'
 
 const KEYS = {
@@ -5,6 +6,8 @@ const KEYS = {
   report: 'lastReport',
   courses: 'courseCache',
   connected: 'googleConnected',
+  assignments: 'assignmentCache',
+  assignmentsAt: 'assignmentCacheAt',
 } as const
 
 export async function loadSettings(): Promise<SyncSettings> {
@@ -36,6 +39,16 @@ export async function loadCourseCache(): Promise<Course[]> {
 
 export async function saveCourseCache(courses: Course[]): Promise<void> {
   await chrome.storage.local.set({ [KEYS.courses]: courses })
+}
+
+/** Deadlines the popup renders, cached so it opens instantly. */
+export async function loadAssignmentCache(): Promise<{ items: CachedAssignment[]; at: number | null }> {
+  const got = await chrome.storage.local.get([KEYS.assignments, KEYS.assignmentsAt])
+  return { items: got[KEYS.assignments] ?? [], at: got[KEYS.assignmentsAt] ?? null }
+}
+
+export async function saveAssignmentCache(items: CachedAssignment[]): Promise<void> {
+  await chrome.storage.local.set({ [KEYS.assignments]: items, [KEYS.assignmentsAt]: Date.now() })
 }
 
 export async function setGoogleConnected(v: boolean): Promise<void> {

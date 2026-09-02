@@ -1,7 +1,8 @@
 import type { Request, Response, SyncNowData } from '../lib/messages'
 import { isOAuthConfigured } from '../lib/oauth'
 import { groupCoursesByTerm, type CourseGroup } from '../lib/terms'
-import { isGoogleConnected, loadCourseCache, loadReport, loadSettings, saveSettings } from '../lib/storage'
+import { isGoogleConnected, loadAssignmentCache, loadCourseCache, loadReport, loadSettings, saveSettings } from '../lib/storage'
+import { buildUpcoming, type CachedAssignment } from '../lib/upcoming'
 import type { Course, SyncReport } from '../lib/types'
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T
@@ -18,6 +19,10 @@ const els = {
   sync: $<HTMLButtonElement>('sync'),
   ics: $<HTMLButtonElement>('ics'),
   status: $<HTMLElement>('status'),
+  upcoming: $<HTMLDivElement>('upcoming'),
+  toggleSubmitted: $<HTMLButtonElement>('toggle-submitted'),
+  toggleCourses: $<HTMLButtonElement>('toggle-courses'),
+  coursesCard: $<HTMLElement>('courses-card'),
   settings: $<HTMLButtonElement>('settings'),
 }
 
@@ -63,6 +68,85 @@ function explain(err: Error): void {
     els.connect.hidden = false
   } else {
     showBanner(err.message, 'err')
+  }
+}
+
+let cachedDeadlines: CachedAssignment[] = []
+let hideSubmitted = false
+
+const timeOf = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+
+function upcomingRow(item: ReturnType<typeof buildUpcoming>['groups'][number]['items'][number]): HTMLElement {
+  // Anchors when we have a link, so the row is genuinely clickable.
+  const row = document.createElement(item.url ? 'a' : 'div')
+  row.className = `up-row${item.submitted ? ' done' : ''}`
+  if (item.url && row instanceof HTMLAnchorElement) {
+    row.href = item.url
+    row.target = '_blank'
+    row.rel = 'noreferrer'
+  }
+
+  const main = document.createElement('span')
+  main.className = 'up-main'
+  const title = document.createElement('span')
+  title.className = 'up-title'
+  title.textContent = item.title
+  const course = document.createElement('span')
+  course.className = 'up-course'
+  course.textContent = item.course
+  main.append(title, course)
+
+  const time = document.createElement('span')
+  time.className = 'up-time'
+  time.textContent = timeOf(item.due)
+
+  row.append(main, time)
+  if (item.submitted) {
+    const check = document.createElement('span')
+    check.className = 'up-check'
+    check.textContent = '\u2713'
+    row.append(check)
+  }
+  return row
+}
+
+function renderUpcoming(): void {
+  els.upcoming.replaceChildren()
+  els.toggleSubmitted.textContent = hideSubmitted ? 'Show done' : 'Hide done'
+
+  if (cachedDeadlines.length === 0) {
+    const p = document.createElement('p')
+    p.className = 'muted'
+    p.textContent = 'No deadlines cached yet. Hit Refresh below.'
+    els.upcoming.append(p)
+    return
+  }
+
+  const view = buildUpcoming(cachedDeadlines, { hideSubmitted })
+  if (view.groups.length === 0) {
+    const p = document.createElement('p')
+    p.className = 'muted'
+    p.textContent = 'Nothing due in the next two weeks.'
+    els.upcoming.append(p)
+    return
+  }
+
+  for (const g of view.groups) {
+    const wrap = document.createElement('div')
+    wrap.className = `up-group${g.label === 'Overdue' ? ' overdue' : ''}`
+    const label = document.createElement('p')
+    label.className = 'up-label'
+    label.textContent = g.label
+    wrap.append(label)
+    for (const item of g.items) wrap.append(upcomingRow(item))
+    els.upcoming.append(wrap)
+  }
+
+  if (view.hiddenCount > 0) {
+    const more = document.createElement('p')
+    more.className = 'up-more'
+    more.textContent = `+${view.hiddenCount} more in the next two weeks`
+    els.upcoming.append(more)
   }
 }
 
@@ -184,12 +268,18 @@ function busy(on: boolean, label?: string): void {
 }
 
 async function init(): Promise<void> {
-  const [settings, cached, report, connected] = await Promise.all([
+  const [settings, cached, report, connected, deadlines] = await Promise.all([
     loadSettings(),
     loadCourseCache(),
     loadReport(),
     isGoogleConnected(),
+    loadAssignmentCache(),
   ])
+
+  cachedDeadlines = deadlines.items
+  renderUpcoming()
+  // Nothing to show yet means the user still has setup to do; lead with courses.
+  els.coursesCard.hidden = deadlines.items.length > 0 && settings.selectedCourseIds.length > 0
 
   const oauthReady = isOAuthConfigured()
   els.connect.hidden = connected || !oauthReady
@@ -211,8 +301,14 @@ async function refreshCourses(quiet = false): Promise<void> {
     const { courses } = await send<{ courses: Course[] }>({ type: 'REFRESH_COURSES' })
     const settings = await loadSettings()
     renderCourses(courses, settings.selectedCourseIds)
+
+    // Deadlines too, so the dashboard fills in without needing Google.
+    const { count } = await send<{ count: number }>({ type: 'REFRESH_DEADLINES' })
+    cachedDeadlines = (await loadAssignmentCache()).items
+    renderUpcoming()
+
     hideBanner()
-    setStatus(`Found ${courses.length} course${courses.length === 1 ? '' : 's'}.`)
+    setStatus(`${courses.length} course${courses.length === 1 ? '' : 's'}, ${count} deadline${count === 1 ? '' : 's'}.`)
   } catch (err) {
     if (!quiet || err instanceof Error) explain(err as Error)
     setStatus('Could not load courses.', 'err')
@@ -222,6 +318,13 @@ async function refreshCourses(quiet = false): Promise<void> {
 }
 
 els.refresh.addEventListener('click', () => void refreshCourses())
+els.toggleSubmitted.addEventListener('click', () => {
+  hideSubmitted = !hideSubmitted
+  renderUpcoming()
+})
+els.toggleCourses.addEventListener('click', () => {
+  els.coursesCard.hidden = !els.coursesCard.hidden
+})
 els.selAll.addEventListener('click', () => setAll(true))
 els.selNone.addEventListener('click', () => setAll(false))
 
@@ -249,6 +352,8 @@ els.sync.addEventListener('click', () => {
     hideBanner()
     try {
       const { report } = await send<SyncNowData>({ type: 'SYNC_NOW' })
+      cachedDeadlines = (await loadAssignmentCache()).items
+      renderUpcoming()
       setStatus(describe(report), report.ok ? 'ok' : 'err')
       if (!report.ok && report.error) {
         showBanner(report.error, 'err')
