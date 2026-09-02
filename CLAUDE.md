@@ -163,7 +163,14 @@ place, but Google's behavior here has not been tested. Do not promise it.
       `launchWebAuthFlow` + PKCE. `gcal.ts` already isolates token acquisition.
 - [ ] Google OAuth verification for public release (sensitive scopes; unverified apps cap at
       100 users). Needs a hosted privacy policy (`docs/privacy.md`) and a demo video.
+- [x] **Popup deadline dashboard** (`lib/upcoming.ts`). Renders from `assignmentCache` in
+      `chrome.storage.local`, so the popup opens instantly. The `REFRESH_DEADLINES` message
+      scrapes and fills that cache **without touching Google Calendar**, so the dashboard is
+      useful before an account is connected. Past-due submitted work is dropped; upcoming
+      submitted work is struck through.
 - [ ] Surface parse warnings more visibly than the Settings report (badge already goes amber).
+- [ ] Badge count of unsubmitted work due within 48h (`buildUpcoming` already returns
+      `overdueCount`; wire it to `chrome.action.setBadgeText`).
 - [ ] Optional: sync late deadlines as separate events (`Assignment.lateDue` is already parsed).
 - [ ] Optional: per-course calendar or color mapping (`colorId` per course).
 
