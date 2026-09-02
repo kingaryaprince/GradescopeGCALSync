@@ -20,21 +20,23 @@
  */
 
 :root {
-  --bg: #fbfbfa;
+  /* Sampled from the icon: ink #2c3638, paper #fafbf6, blue #1d75e3. */
+  --bg: #fafbf6;
   --surface: #ffffff;
-  --surface-hi: #f2f2f0;
-  --fg: #14171a;
-  --muted: #6d757d;
-  --line: #14171a;
-  --rule: #d9dbd8;
+  --surface-hi: #eff1ea;
+  --fg: #2c3638;
+  --muted: #6b747a;
+  --line: #2c3638;
+  --rule: #d5d8cf;
 
-  --accent: #10707f;
-  --accent-hi: #14899b;
+  --accent: #1d75e3;
+  --accent-hi: #1668cf;
   --accent-fg: #ffffff;
-  --accent-soft: #e3f0f2;
+  --accent-soft: #e7effb;
 
   --ok: #12693a;
-  --warn: #8a5a00;
+  /* Close to the icon's orange accent, darkened to stay readable as text. */
+  --warn: #a35a00;
   --err: #b3221f;
 
   /* Square by intent. Kept as tokens so the scale stays consistent. */
@@ -59,37 +61,37 @@
 
 @media (prefers-color-scheme: dark) {
   html:not([data-theme='light']) {
-    --bg: #0e1013;
-    --surface: #15181c;
-    --surface-hi: #1c2025;
+    --bg: #14181b;
+    --surface: #1b2023;
+    --surface-hi: #242b2e;
     --fg: #eceef0;
     --muted: #8b9299;
     --line: #eceef0;
-    --rule: #2b3037;
-    --accent: #35b0c2;
-    --accent-hi: #5fc9d8;
-    --accent-fg: #0e1013;
-    --accent-soft: #11282d;
+    --rule: #2e3639;
+    --accent: #5b9df0;
+    --accent-hi: #85b8f6;
+    --accent-fg: #14181b;
+    --accent-soft: #16283c;
     --ok: #3fb950;
-    --warn: #d9a017;
+    --warn: #e08a1e;
     --err: #f0524d;
   }
 }
 
 html[data-theme='dark'] {
-  --bg: #0e1013;
-  --surface: #15181c;
-  --surface-hi: #1c2025;
+  --bg: #14181b;
+  --surface: #1b2023;
+  --surface-hi: #242b2e;
   --fg: #eceef0;
   --muted: #8b9299;
   --line: #eceef0;
-  --rule: #2b3037;
-  --accent: #35b0c2;
-  --accent-hi: #5fc9d8;
-  --accent-fg: #0e1013;
-  --accent-soft: #11282d;
+  --rule: #2e3639;
+  --accent: #5b9df0;
+  --accent-hi: #85b8f6;
+  --accent-fg: #14181b;
+  --accent-soft: #16283c;
   --ok: #3fb950;
-  --warn: #d9a017;
+  --warn: #e08a1e;
   --err: #f0524d;
 }
 
