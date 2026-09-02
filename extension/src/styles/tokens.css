@@ -9,290 +9,266 @@
 }
 
 /**
- * Design tokens.
+ * Design tokens — "technical editorial".
  *
- * The visual language is "soft tactile": generous radii, layered shadows,
- * springy overshoot easing, a gradient accent, and scale feedback on press.
- * Red and amber are reserved strictly for urgency and never used decoratively.
+ * Hairline rules, square corners, uppercase letterspaced labels, monospace
+ * numerals, and hard offset shadows instead of soft blur. Hierarchy comes from
+ * type and rules rather than elevation, and interactive elements invert on
+ * hover rather than lifting.
+ *
+ * Red and amber mean urgency only, never decoration.
  */
 
 :root {
-  /* Surfaces */
-  --bg: #ffffff;
-  --surface: #f6f8fa;
-  --surface-hi: #ffffff;
-  --fg: #1f2328;
-  --muted: #656d76;
-  --line: #d8dee4;
+  --bg: #fbfbfa;
+  --surface: #ffffff;
+  --surface-hi: #f2f2f0;
+  --fg: #14171a;
+  --muted: #6d757d;
+  --line: #14171a;
+  --rule: #d9dbd8;
 
-  /* Accent */
-  --accent: #17849b;
-  --accent-hi: #2c9caf;
+  --accent: #10707f;
+  --accent-hi: #14899b;
   --accent-fg: #ffffff;
-  --accent-grad: linear-gradient(135deg, #11697f 0%, #2c9caf 55%, #56bccb 100%);
-  --accent-soft: rgba(44, 156, 175, 0.13);
+  --accent-soft: #e3f0f2;
 
-  /* Type */
+  --ok: #12693a;
+  --warn: #8a5a00;
+  --err: #b3221f;
+
+  /* Square by intent. Kept as tokens so the scale stays consistent. */
+  --r-sm: 0px;
+  --r-md: 0px;
+  --r-lg: 0px;
+  --r-pill: 0px;
+
+  /* Hard offsets, no blur. */
+  --sh-1: none;
+  --sh-2: 3px 3px 0 var(--line);
+  --sh-accent: 3px 3px 0 var(--line);
+
   --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 
-  /* Urgency */
-  --ok: #1a7f37;
-  --warn: #bf8700;
-  --err: #d1242f;
-
-  /* Radii */
-  --r-sm: 7px;
-  --r-md: 11px;
-  --r-lg: 16px;
-  --r-pill: 999px;
-
-  /* Layered shadows, as in the reference snippets */
-  --sh-1: rgba(50, 50, 93, 0.12) 0 2px 5px -1px, rgba(0, 0, 0, 0.14) 0 1px 3px -1px;
-  --sh-2: rgba(50, 50, 93, 0.18) 0 6px 14px -2px, rgba(0, 0, 0, 0.16) 0 2px 6px -2px;
-  --sh-glass: rgba(0, 0, 0, 0.1) 0 8px 26px -6px;
-  --sh-accent: rgba(23, 132, 155, 0.34) 0 4px 12px -2px;
-
-  /* Motion */
   --spring: cubic-bezier(0.16, 1, 0.3, 1);
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --fast: 0.18s;
-  --slow: 0.42s;
+  --fast: 0.14s;
+  --slow: 0.34s;
 }
 
-/* Dark values are declared twice: once for "follow the system" and once for an
-   explicit override, so the theme control can win over the media query. */
 @media (prefers-color-scheme: dark) {
   html:not([data-theme='light']) {
-    --bg: #16191f;
-    --surface: #1e232b;
-    --surface-hi: #262c36;
-    --fg: #e6edf3;
-    --muted: #9198a1;
-    --line: #333b47;
-    --accent: #46b3c6;
-    --accent-hi: #70cddd;
-    --accent-soft: rgba(70, 179, 198, 0.16);
-    --err: #ff6b74;
-    --warn: #e3b341;
+    --bg: #0e1013;
+    --surface: #15181c;
+    --surface-hi: #1c2025;
+    --fg: #eceef0;
+    --muted: #8b9299;
+    --line: #eceef0;
+    --rule: #2b3037;
+    --accent: #35b0c2;
+    --accent-hi: #5fc9d8;
+    --accent-fg: #0e1013;
+    --accent-soft: #11282d;
     --ok: #3fb950;
-    --sh-1: rgba(0, 0, 0, 0.4) 0 2px 5px -1px, rgba(0, 0, 0, 0.3) 0 1px 3px -1px;
-    --sh-2: rgba(0, 0, 0, 0.5) 0 6px 14px -2px, rgba(0, 0, 0, 0.4) 0 2px 6px -2px;
+    --warn: #d9a017;
+    --err: #f0524d;
   }
 }
 
 html[data-theme='dark'] {
-  --bg: #16191f;
-  --surface: #1e232b;
-  --surface-hi: #262c36;
-  --fg: #e6edf3;
-  --muted: #9198a1;
-  --line: #333b47;
-  --accent: #46b3c6;
-  --accent-hi: #70cddd;
-  --accent-soft: rgba(70, 179, 198, 0.16);
-  --err: #ff6b74;
-  --warn: #e3b341;
+  --bg: #0e1013;
+  --surface: #15181c;
+  --surface-hi: #1c2025;
+  --fg: #eceef0;
+  --muted: #8b9299;
+  --line: #eceef0;
+  --rule: #2b3037;
+  --accent: #35b0c2;
+  --accent-hi: #5fc9d8;
+  --accent-fg: #0e1013;
+  --accent-soft: #11282d;
   --ok: #3fb950;
-  --sh-1: rgba(0, 0, 0, 0.4) 0 2px 5px -1px, rgba(0, 0, 0, 0.3) 0 1px 3px -1px;
-  --sh-2: rgba(0, 0, 0, 0.5) 0 6px 14px -2px, rgba(0, 0, 0, 0.4) 0 2px 6px -2px;
+  --warn: #d9a017;
+  --err: #f0524d;
 }
 
-/* ---------------------------- primitives ---------------------------- */
+/* ------------------------------ type scale ------------------------------ */
+
+/* The uppercase micro-label is the workhorse of this style. */
+.card-title,
+.up-label,
+.term-hdr > span {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ------------------------------ primitives ------------------------------ */
 
 button {
-  font: inherit;
-  color: var(--fg);
-  background: var(--surface-hi);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 7px 12px;
-  cursor: pointer;
-  box-shadow: var(--sh-1);
-  transition: transform var(--fast) var(--ease), box-shadow var(--fast) var(--ease),
-    background var(--fast) linear, border-color var(--fast) linear;
-}
-button:hover:not(:disabled) { transform: scale(1.035); box-shadow: var(--sh-2); }
-button:active:not(:disabled) { transform: scale(0.955); box-shadow: var(--sh-1); }
-button:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-.primary {
-  background: var(--accent-grad);
-  border-color: transparent;
-  color: var(--accent-fg);
-  font-weight: 550;
-  box-shadow: var(--sh-accent);
-}
-.primary:hover:not(:disabled) { box-shadow: rgba(23, 132, 155, 0.46) 0 6px 18px -2px; }
-
-/* Sweep fill, adapted from the reference outline button: a skewed panel wipes
-   across on hover. Shortened from 1s to 0.45s -- at popup scale a full second
-   reads as lag rather than polish. */
-.sweep {
   position: relative;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--fg);
+  background: transparent;
+  border: 1.5px solid var(--line);
+  border-radius: 0;
+  padding: 9px 14px;
+  cursor: pointer;
   overflow: hidden;
   z-index: 0;
-  border-color: var(--accent);
-  color: var(--accent);
-  background: transparent;
+  transition: color var(--fast) linear, border-color var(--fast) linear;
 }
-.sweep::before {
+
+/* Fill wipes in from the left, so hover inverts the button rather than
+   lifting it. Replaces the previous scale-and-shadow feedback. */
+button::before {
   content: '';
   position: absolute;
   z-index: -1;
-  top: 0;
-  left: -40%;
+  inset: 0 auto 0 0;
   width: 0;
-  height: 100%;
-  background: var(--accent-grad);
-  transform: skewX(28deg);
-  transition: width 0.45s var(--ease);
+  background: var(--fg);
+  transition: width var(--slow) var(--ease);
 }
-.sweep:hover:not(:disabled) { color: var(--accent-fg); border-color: transparent; }
-.sweep:hover:not(:disabled)::before { width: 190%; }
+button:hover:not(:disabled) { color: var(--bg); }
+button:hover:not(:disabled)::before { width: 100%; }
+button:active:not(:disabled) { transform: translate(1px, 1px); }
+button:disabled { opacity: 0.4; cursor: default; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.primary {
+  color: var(--accent-fg);
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.primary::before { background: var(--fg); }
+.primary:hover:not(:disabled) { color: var(--bg); border-color: var(--fg); }
+
+/* Corner ticks, lifted from the reference button. Applied to the primary
+   action only, so they read as an accent rather than a texture. */
+.primary::after {
+  content: '';
+  position: absolute;
+  top: -1.5px;
+  left: 9px;
+  width: 22px;
+  height: 1.5px;
+  background: var(--bg);
+  transition: width var(--slow) var(--ease), left var(--slow) var(--ease);
+}
+.primary:hover::after { left: -1.5px; width: 0; }
 
 .link-btn {
   border: none;
-  background: none;
-  box-shadow: none;
+  padding: 3px 2px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
   color: var(--accent);
-  padding: 2px 3px;
-  font-size: 12px;
-  border-radius: var(--r-sm);
+  border-bottom: 1.5px solid transparent;
 }
-.link-btn:hover:not(:disabled) { transform: none; background: var(--surface); box-shadow: none; }
-.link-btn:active:not(:disabled) { transform: scale(0.94); }
+.link-btn::before { display: none; }
+.link-btn:hover:not(:disabled) { color: var(--accent); border-bottom-color: var(--accent); }
+.link-btn:active:not(:disabled) { transform: translate(0, 1px); }
 
 .icon-btn {
   border: none;
-  background: none;
-  box-shadow: none;
-  font-size: 15px;
   padding: 4px 6px;
-  border-radius: var(--r-sm);
+  font-size: 14px;
+  letter-spacing: 0;
   color: var(--muted);
 }
-.icon-btn:hover:not(:disabled) { background: var(--surface); box-shadow: none; transform: rotate(35deg); }
+.icon-btn::before { display: none; }
+.icon-btn:hover:not(:disabled) { color: var(--fg); }
 
-/* ------------------- checkbox, scaled from the ink one ------------------- */
+/* Kept so existing markup using .sweep still renders; the base button now
+   carries the wipe, so this only shifts the fill to the accent. */
+.sweep::before { background: var(--accent); }
+.sweep:hover:not(:disabled) { color: var(--accent-fg); border-color: var(--accent); }
+
+/* -------------------------------- checkbox -------------------------------- */
 
 input[type='checkbox'] {
   appearance: none;
   -webkit-appearance: none;
   position: relative;
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
   flex: none;
   margin: 0;
-  border: 2px solid var(--line);
-  border-radius: 6px;
-  background: var(--bg);
+  border: 1.5px solid var(--line);
+  border-radius: 0;
+  background: transparent;
   cursor: pointer;
-  overflow: hidden;
-  transition: border-color var(--fast) linear, transform var(--fast) var(--ease);
+  transition: background var(--fast) linear;
 }
-input[type='checkbox']:hover { transform: scale(1.12); border-color: var(--accent); }
-input[type='checkbox']:active { transform: scale(0.9); }
+input[type='checkbox']:hover { background: var(--surface-hi); }
+input[type='checkbox']:checked { background: var(--fg); }
 
-/* Ink fill blooms from the centre. */
-input[type='checkbox']::before {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: 50%;
-  background: var(--accent-grad);
-  transform: scale(0);
-  transition: transform var(--slow) var(--spring), border-radius var(--slow) var(--ease);
-}
-input[type='checkbox']:checked { border-color: var(--accent); }
-input[type='checkbox']:checked::before { transform: scale(1.6); border-radius: 22%; }
-
-/* Tick draws itself once the ink has landed. */
+/* Tick draws itself; no ink bloom, which suited the softer language. */
 input[type='checkbox']::after {
   content: '';
   position: absolute;
-  left: 4px;
+  left: 3px;
   top: 1px;
   width: 5px;
-  height: 9px;
-  border-right: 2.5px solid #fff;
-  border-bottom: 2.5px solid #fff;
-  transform: rotate(40deg) scale(0.4);
-  opacity: 0;
+  height: 8px;
+  border-right: 1.5px solid var(--bg);
+  border-bottom: 1.5px solid var(--bg);
+  transform: rotate(40deg);
   clip-path: inset(0 100% 0 0);
-  transition: clip-path 0.3s var(--ease) 0.12s, transform 0.3s var(--spring) 0.12s,
-    opacity 0.12s linear 0.12s;
+  transition: clip-path var(--slow) var(--ease);
 }
-input[type='checkbox']:checked::after {
-  opacity: 1;
-  transform: rotate(40deg) scale(1);
-  clip-path: inset(0 0 0 0);
-}
+input[type='checkbox']:checked::after { clip-path: inset(0 0 0 0); }
 input[type='checkbox']:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* ----------------------------- dot loader ----------------------------- */
+/* --------------------------------- loader --------------------------------- */
 
+/* Square blocks rather than dots, to match the rectilinear language. */
 .loader {
   display: inline-block;
   position: relative;
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   vertical-align: -2px;
-  animation: loader-spin 2s linear infinite;
+  animation: loader-spin 2s steps(4, end) infinite;
 }
-.loader i {
-  position: absolute;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent);
-}
+.loader i { position: absolute; width: 5px; height: 5px; background: var(--accent); }
 .loader i:nth-child(1) { top: 0; left: 0; }
 .loader i:nth-child(2) { top: 0; right: 0; }
 .loader i:nth-child(3) { bottom: 0; left: 0; }
 .loader i:nth-child(4) { bottom: 0; right: 0; }
 
-@keyframes loader-spin {
-  0%   { transform: scale(1) rotate(0deg); }
-  20%, 25%  { transform: scale(1.25) rotate(90deg); }
-  45%, 50%  { transform: scale(1) rotate(180deg); }
-  70%, 75%  { transform: scale(1.25) rotate(270deg); }
-  95%, 100% { transform: scale(1) rotate(360deg); }
-}
+@keyframes loader-spin { to { transform: rotate(360deg); } }
 
-/* --------------------------- segmented control --------------------------- */
+/* ---------------------------- segmented control ---------------------------- */
 
 .segmented {
   position: relative;
   display: inline-flex;
-  padding: 3px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-pill);
+  padding: 0;
+  background: transparent;
+  border: 1.5px solid var(--line);
+  border-radius: 0;
 }
 .segmented button {
-  position: relative;
-  z-index: 1;
   border: none;
-  background: none;
-  box-shadow: none;
-  border-radius: var(--r-pill);
-  padding: 4px 12px;
-  font-size: 12px;
+  border-right: 1.5px solid var(--rule);
+  padding: 6px 13px;
   color: var(--muted);
 }
-.segmented button:hover:not(:disabled) { transform: none; box-shadow: none; }
-.segmented button[aria-pressed='true'] { color: var(--accent-fg); }
-.segmented .thumb {
-  position: absolute;
-  z-index: 0;
-  top: 3px;
-  bottom: 3px;
-  border-radius: var(--r-pill);
-  background: var(--accent-grad);
-  box-shadow: var(--sh-1);
-  transition: transform var(--slow) var(--spring), width var(--slow) var(--spring);
-}
+.segmented button:last-child { border-right: none; }
+.segmented button::before { background: var(--fg); }
+.segmented button[aria-pressed='true'] { color: var(--accent-fg); background: var(--accent); }
+.segmented button[aria-pressed='true']:hover { color: var(--bg); }
+/* The sliding thumb belonged to the pill; selection is now a solid fill. */
+.segmented .thumb { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
