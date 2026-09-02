@@ -72,7 +72,7 @@ your main calendar, and you can hide or delete all of them at once.
 ## Privacy
 
 Your Gradescope data goes from your browser to your Google Calendar. There is no server in the
-middle, because there is no server. See [PRIVACY.md](PRIVACY.md).
+middle, because there is no server. See [docs/privacy.md](docs/privacy.md).
 
 ## Development
 
@@ -141,7 +141,7 @@ the fallback warning in Settings will say so.
 
 - [ ] Set a real `oauth2.client_id` and a fixed `key` in the manifest
 - [ ] Verify selectors against a live Gradescope account
-- [ ] Host `PRIVACY.md` at a public URL (required for OAuth verification)
+- [ ] Publish `docs/privacy.md` via GitHub Pages (required for OAuth verification)
 - [ ] Submit the OAuth consent screen for verification (sensitive scopes; unverified apps are capped at 100 users)
 - [ ] `npm run zip` → upload to the Chrome Web Store
 

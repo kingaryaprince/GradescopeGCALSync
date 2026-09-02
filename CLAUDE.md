@@ -160,7 +160,7 @@ place, but Google's behavior here has not been tested. Do not promise it.
 - [ ] Firefox / Edge port: replace `chrome.identity.getAuthToken` (Chrome-only) with
       `launchWebAuthFlow` + PKCE. `gcal.ts` already isolates token acquisition.
 - [ ] Google OAuth verification for public release (sensitive scopes; unverified apps cap at
-      100 users). Needs a hosted `PRIVACY.md` and a demo video.
+      100 users). Needs a hosted privacy policy (`docs/privacy.md`) and a demo video.
 - [ ] Surface parse warnings more visibly than the Settings report (badge already goes amber).
 - [ ] Optional: sync late deadlines as separate events (`Assignment.lateDue` is already parsed).
 - [ ] Optional: per-course calendar or color mapping (`colorId` per course).
