@@ -82,6 +82,12 @@ export interface SyncSettings {
    * turned in last week is the fastest way to train you to ignore reminders.
    */
   skipSubmitted: boolean
+  /**
+   * Stop showing unsubmitted overdue work once it is this many days old.
+   * 0 keeps it indefinitely. Defaults to a week: long enough to still chase a
+   * late submission, short enough that dead work does not pile up.
+   */
+  hideOverdueAfterDays: number
   /** 'auto' follows the OS; the others override it. */
   theme: 'auto' | 'light' | 'dark'
 }
@@ -101,6 +107,7 @@ export const DEFAULT_SETTINGS: SyncSettings = {
   notifyNewAssignments: false,
   skipSubmitted: false,
   theme: 'auto',
+  hideOverdueAfterDays: 7,
 }
 
 export interface SyncStats {

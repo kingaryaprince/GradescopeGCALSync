@@ -10,6 +10,7 @@ import { fromWire, fail, ok, type Request, type Response, type ScrapeAssignments
 import {
   loadAssignmentCache,
   loadCourseCache,
+  loadDismissed,
   loadReport,
   saveAssignmentCache,
   loadSettings,
@@ -241,7 +242,11 @@ async function updateBadge(): Promise<void> {
   }
 
   const { items } = await loadAssignmentCache()
-  const b = badgeState(items)
+  const settings = await loadSettings()
+  const b = badgeState(items, {
+    dismissed: await loadDismissed(),
+    hideOverdueAfterDays: settings.hideOverdueAfterDays,
+  })
   void chrome.action.setBadgeText({ text: b.text })
   void chrome.action.setBadgeBackgroundColor({ color: b.color })
   void chrome.action.setTitle({ title: `Docket · ${b.title}` })

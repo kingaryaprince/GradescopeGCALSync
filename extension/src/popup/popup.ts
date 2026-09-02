@@ -2,7 +2,17 @@ import type { Request, Response, SyncNowData } from '../lib/messages'
 import { isOAuthConfigured } from '../lib/oauth'
 import { applyTheme, initTheme } from '../lib/theme'
 import { groupCoursesByTerm, type CourseGroup } from '../lib/terms'
-import { isGoogleConnected, loadAssignmentCache, loadCourseCache, loadReport, loadSettings, saveSettings } from '../lib/storage'
+import {
+  dismissAssignment,
+  isGoogleConnected,
+  loadAssignmentCache,
+  loadCourseCache,
+  loadDismissed,
+  loadReport,
+  loadSettings,
+  saveSettings,
+  undismissAssignment,
+} from '../lib/storage'
 import { courseColor } from '../lib/colors'
 import { buildUpcoming, relativeTime, urgencyOf, type CachedAssignment } from '../lib/upcoming'
 import type { Course, SyncReport } from '../lib/types'
@@ -90,6 +100,8 @@ function explain(err: Error): void {
 }
 
 let cachedDeadlines: CachedAssignment[] = []
+let dismissedKeys: string[] = []
+let overdueGraceDays = 0
 let hideSubmitted = false
 
 const timeOf = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
@@ -137,7 +149,48 @@ function upcomingRow(item: ReturnType<typeof buildUpcoming>['groups'][number]['i
     check.textContent = '\u2713'
     row.append(check)
   }
+
+  // Lets you clear overdue work you are never going to submit. Nested inside
+  // an anchor, so the row's navigation has to be suppressed explicitly.
+  const dismiss = document.createElement('button')
+  dismiss.className = 'up-dismiss'
+  dismiss.textContent = '\u00d7'
+  dismiss.title = 'Hide this assignment'
+  dismiss.setAttribute('aria-label', `Hide ${item.title}`)
+  dismiss.addEventListener('click', (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    void onDismiss(item.key, item.title)
+  })
+  row.append(dismiss)
   return row
+}
+
+async function onDismiss(key: string, title: string): Promise<void> {
+  await dismissAssignment(key)
+  dismissedKeys = await loadDismissed()
+  renderUpcoming()
+  offerUndo(key, title)
+}
+
+/** Dismissing is easy to misclick, so keep an undo around for a few seconds. */
+function offerUndo(key: string, title: string): void {
+  els.status.replaceChildren()
+  els.status.className = 'status muted'
+  els.status.append(document.createTextNode(`Hid "${title}". `))
+
+  const undo = document.createElement('button')
+  undo.className = 'link-btn'
+  undo.textContent = 'Undo'
+  undo.addEventListener('click', () => {
+    void (async () => {
+      await undismissAssignment(key)
+      dismissedKeys = await loadDismissed()
+      renderUpcoming()
+      setStatus('')
+    })()
+  })
+  els.status.append(undo)
 }
 
 /** Offers a one-click load when courses are selected but nothing is cached. */
@@ -165,7 +218,11 @@ function renderUpcoming(): void {
     return
   }
 
-  const view = buildUpcoming(cachedDeadlines, { hideSubmitted })
+  const view = buildUpcoming(cachedDeadlines, {
+    hideSubmitted,
+    dismissed: dismissedKeys,
+    hideOverdueAfterDays: overdueGraceDays,
+  })
   if (view.groups.length === 0) {
     const p = document.createElement('p')
     p.className = 'muted'
@@ -337,15 +394,18 @@ function busy(on: boolean, label?: string): void {
 }
 
 async function init(): Promise<void> {
-  const [settings, cached, report, connected, deadlines] = await Promise.all([
+  const [settings, cached, report, connected, deadlines, dismissed] = await Promise.all([
     loadSettings(),
     loadCourseCache(),
     loadReport(),
     isGoogleConnected(),
     loadAssignmentCache(),
+    loadDismissed(),
   ])
 
   cachedDeadlines = deadlines.items
+  dismissedKeys = dismissed
+  overdueGraceDays = settings.hideOverdueAfterDays
   paintThemeButton(settings.theme)
   renderUpcoming()
   // Nothing to show yet means the user still has setup to do; lead with courses.

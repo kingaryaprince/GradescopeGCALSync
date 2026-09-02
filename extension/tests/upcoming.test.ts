@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   badgeState,
   buildUpcoming,
+  filterVisible,
   relativeTime,
   urgencyOf,
   type CachedAssignment,
@@ -126,7 +127,7 @@ describe('badgeState', () => {
   const NOW2 = new Date('2026-09-02T12:00:00')
 
   it('is empty when nothing is outstanding', () => {
-    const b = badgeState([a({ dueIso: iso('2026-09-20T16:00:00') })], NOW2)
+    const b = badgeState([a({ dueIso: iso('2026-09-20T16:00:00') })], { now: NOW2 })
     expect(b.text).toBe('')
     expect(b.title).toBe('Nothing due soon')
   })
@@ -137,7 +138,7 @@ describe('badgeState', () => {
         a({ dueIso: iso('2026-09-03T16:00:00'), key: 'x' }),
         a({ dueIso: iso('2026-09-02T18:00:00'), key: 'y' }),
       ],
-      NOW2,
+      { now: NOW2 },
     )
     expect(b.text).toBe('2')
     expect(b.color).toBe('#bf8700')
@@ -150,7 +151,7 @@ describe('badgeState', () => {
         a({ dueIso: iso('2026-08-30T16:00:00'), key: 'late' }),
         a({ dueIso: iso('2026-09-03T16:00:00'), key: 'soon' }),
       ],
-      NOW2,
+      { now: NOW2 },
     )
     expect(b.text).toBe('1')
     expect(b.color).toBe('#cf222e')
@@ -163,17 +164,17 @@ describe('badgeState', () => {
         a({ dueIso: iso('2026-08-30T16:00:00'), key: 'a', submitted: true }),
         a({ dueIso: iso('2026-09-03T16:00:00'), key: 'b', submitted: true }),
       ],
-      NOW2,
+      { now: NOW2 },
     )
     expect(b.text).toBe('')
   })
 
   it('ignores work beyond the window', () => {
-    expect(badgeState([a({ dueIso: iso('2026-09-10T16:00:00') })], NOW2).text).toBe('')
+    expect(badgeState([a({ dueIso: iso('2026-09-10T16:00:00') })], { now: NOW2 }).text).toBe('')
   })
 
   it('singularises the tooltip', () => {
-    expect(badgeState([a({ dueIso: iso('2026-08-30T16:00:00') })], NOW2).title).toBe(
+    expect(badgeState([a({ dueIso: iso('2026-08-30T16:00:00') })], { now: NOW2 }).title).toBe(
       '1 overdue assignment',
     )
   })
@@ -182,7 +183,7 @@ describe('badgeState', () => {
     const many = Array.from({ length: 120 }, (_, i) =>
       a({ dueIso: iso('2026-08-30T16:00:00'), key: `k${i}` }),
     )
-    expect(badgeState(many, NOW2).text).toBe('99+')
+    expect(badgeState(many, { now: NOW2 }).text).toBe('99+')
   })
 })
 
@@ -217,5 +218,82 @@ describe('urgencyOf', () => {
     expect(urgencyOf(new Date('2026-09-02T15:00:00'), n)).toBe('soon')
     expect(urgencyOf(new Date('2026-09-03T10:00:00'), n)).toBe('today')
     expect(urgencyOf(new Date('2026-09-10T10:00:00'), n)).toBe('later')
+  })
+})
+
+describe('hiding overdue work', () => {
+  const NOW3 = new Date('2026-09-02T12:00:00')
+  const old = a({ dueIso: iso('2026-08-20T16:00:00'), key: 'old', title: 'Ancient' })
+  const recent = a({ dueIso: iso('2026-09-01T16:00:00'), key: 'recent', title: 'Yesterday' })
+
+  const titles = (v: ReturnType<typeof buildUpcoming>) =>
+    v.groups.flatMap((g) => g.items.map((i) => i.title))
+
+  it('keeps all overdue work when no grace period is set', () => {
+    const v = buildUpcoming([old, recent], { now: NOW3 })
+    expect(titles(v)).toEqual(['Ancient', 'Yesterday'])
+  })
+
+  // Work you can no longer submit should not sit in the list forever.
+  it('ages out overdue work past the grace period', () => {
+    const v = buildUpcoming([old, recent], { now: NOW3, hideOverdueAfterDays: 3 })
+    expect(titles(v)).toEqual(['Yesterday'])
+  })
+
+  it('never ages out work that is not yet due', () => {
+    const future = a({ dueIso: iso('2026-09-20T16:00:00'), key: 'f', title: 'Future' })
+    const v = buildUpcoming([future], { now: NOW3, hideOverdueAfterDays: 1, days: 30 })
+    expect(titles(v)).toEqual(['Future'])
+  })
+
+  it('stops the badge counting aged-out work', () => {
+    expect(badgeState([old], { now: NOW3 }).text).toBe('1')
+    expect(badgeState([old], { now: NOW3, hideOverdueAfterDays: 3 }).text).toBe('')
+  })
+})
+
+describe('dismissing assignments', () => {
+  const NOW3 = new Date('2026-09-02T12:00:00')
+  const one = a({ dueIso: iso('2026-08-25T16:00:00'), key: 'k1', title: 'Dead' })
+  // Inside the 48h badge window, so it should still register.
+  const two = a({ dueIso: iso('2026-09-03T16:00:00'), key: 'k2', title: 'Live' })
+
+  it('removes a dismissed item from the list', () => {
+    const v = buildUpcoming([one, two], { now: NOW3, dismissed: ['k1'] })
+    expect(v.groups.flatMap((g) => g.items.map((i) => i.title))).toEqual(['Live'])
+  })
+
+  // Dismissing pointless overdue work has to clear the red badge too, or
+  // dismissing it achieves nothing.
+  it('removes a dismissed item from the badge count', () => {
+    expect(badgeState([one], { now: NOW3 }).text).toBe('1')
+    expect(badgeState([one], { now: NOW3, dismissed: ['k1'] }).text).toBe('')
+  })
+
+  it('leaves other assignments alone', () => {
+    expect(badgeState([one, two], { now: NOW3, dismissed: ['k1'] }).text).toBe('1')
+  })
+
+  it('ignores dismissals for assignments that no longer exist', () => {
+    const v = buildUpcoming([two], { now: NOW3, dismissed: ['gone', 'k1'] })
+    expect(v.groups.flatMap((g) => g.items.map((i) => i.title))).toEqual(['Live'])
+  })
+})
+
+describe('filterVisible', () => {
+  const NOW3 = new Date('2026-09-02T12:00:00')
+
+  it('drops submitted work that is already past due', () => {
+    const done = a({ dueIso: iso('2026-08-30T16:00:00'), key: 'd', submitted: true })
+    expect(filterVisible([done], { now: NOW3 })).toEqual([])
+  })
+
+  it('keeps submitted work that is still upcoming', () => {
+    const soon = a({ dueIso: iso('2026-09-05T16:00:00'), key: 's', submitted: true })
+    expect(filterVisible([soon], { now: NOW3 })).toHaveLength(1)
+  })
+
+  it('drops unparseable dates', () => {
+    expect(filterVisible([a({ dueIso: 'nope' })], { now: NOW3 })).toEqual([])
   })
 })

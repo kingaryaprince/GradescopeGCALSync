@@ -89,6 +89,21 @@
           <input id="skip-submitted" type="checkbox" />
           Skip assignments you have already submitted
         </label>
+        <label class="field">
+          <span>Stop showing overdue work after</span>
+          <span class="inline">
+            <input id="overdue-days" type="number" min="0" max="365" /> days
+          </span>
+        </label>
+        <p class="hint">
+          Unsubmitted work you can no longer turn in stops appearing in the list, and stops
+          counting toward the badge, once it is this old. Set 0 to keep overdue work
+          indefinitely. You can also hide individual assignments with the &times; on any row.
+        </p>
+        <div class="row-between">
+          <p class="muted" id="dismissed-count">No assignments hidden.</p>
+          <button id="clear-dismissed" type="button" class="compact">Unhide all</button>
+        </div>
         <p class="hint">
           Keeps reminders off work you have already turned in. Enabling this also removes
           existing events once you submit.

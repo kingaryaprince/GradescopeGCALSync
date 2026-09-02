@@ -2,7 +2,7 @@ import type { CalendarSummary } from '../lib/calendar/gcal'
 import type { Request, Response } from '../lib/messages'
 import { OAUTH_SETUP_HINT, isOAuthConfigured } from '../lib/oauth'
 import { applyTheme, initTheme } from '../lib/theme'
-import { isGoogleConnected, loadReport, loadSettings, saveSettings } from '../lib/storage'
+import { clearDismissed, isGoogleConnected, loadDismissed, loadReport, loadSettings, saveSettings } from '../lib/storage'
 import type { SyncReport, SyncSettings } from '../lib/types'
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T
@@ -22,6 +22,9 @@ const el = {
   deny: $<HTMLInputElement>('deny'),
   removeStale: $<HTMLInputElement>('remove-stale'),
   skipSubmitted: $<HTMLInputElement>('skip-submitted'),
+  overdueDays: $<HTMLInputElement>('overdue-days'),
+  dismissedCount: $<HTMLParagraphElement>('dismissed-count'),
+  clearDismissed: $<HTMLButtonElement>('clear-dismissed'),
   notifyGrades: $<HTMLInputElement>('notify-grades'),
   notifyNew: $<HTMLInputElement>('notify-new'),
   auto: $<HTMLInputElement>('auto'),
@@ -78,6 +81,7 @@ function fillForm(s: SyncSettings): void {
   el.deny.value = s.denyKeywords.join(', ')
   el.removeStale.checked = s.removeStale
   el.skipSubmitted.checked = s.skipSubmitted
+  el.overdueDays.value = String(s.hideOverdueAfterDays)
   el.notifyGrades.checked = s.notifyGrades
   el.notifyNew.checked = s.notifyNewAssignments
   el.auto.checked = s.autoSync
@@ -198,6 +202,7 @@ el.save.addEventListener('click', () => {
       denyKeywords: parseList(el.deny.value),
       removeStale: el.removeStale.checked,
       skipSubmitted: el.skipSubmitted.checked,
+      hideOverdueAfterDays: Math.min(365, Math.max(0, Number.parseInt(el.overdueDays.value, 10) || 0)),
       notifyGrades: el.notifyGrades.checked,
       notifyNewAssignments: el.notifyNew.checked,
       autoSync: el.auto.checked,
@@ -237,8 +242,23 @@ el.theme.addEventListener('click', (e) => {
 window.addEventListener('load', () => void (async () => paintTheme((await loadSettings()).theme))())
 window.addEventListener('resize', () => void (async () => paintTheme((await loadSettings()).theme))())
 
+async function paintDismissed(): Promise<void> {
+  const n = (await loadDismissed()).length
+  el.dismissedCount.textContent =
+    n === 0 ? 'No assignments hidden.' : `${n} assignment${n === 1 ? '' : 's'} hidden by hand.`
+  el.clearDismissed.disabled = n === 0
+}
+
+el.clearDismissed.addEventListener('click', () => {
+  void (async () => {
+    await clearDismissed()
+    await paintDismissed()
+  })()
+})
+
 void (async () => {
   await initTheme()
+  await paintDismissed()
   fillForm(await loadSettings())
   renderReport(await loadReport())
   await refreshConnection()

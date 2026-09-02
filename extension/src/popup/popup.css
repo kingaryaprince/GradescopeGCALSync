@@ -214,3 +214,25 @@ body {
 .status-label { display: block; }
 
 .load-btn { margin-top: 4px; width: 100%; }
+
+/* Dismiss control. Hidden until the row is hovered so it does not add noise
+   to a list that is mostly read, not acted on. */
+.up-dismiss {
+  flex: none;
+  border: none;
+  padding: 0 2px;
+  font-size: 15px;
+  line-height: 1;
+  letter-spacing: 0;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity var(--fast) linear, color var(--fast) linear;
+}
+.up-dismiss::before { display: none; }
+.up-row:hover .up-dismiss { opacity: 1; }
+.up-dismiss:hover:not(:disabled) {
+  color: var(--err);
+  transform: none;
+  box-shadow: none;
+}
+.up-dismiss:focus-visible { opacity: 1; }

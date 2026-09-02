@@ -144,6 +144,11 @@ scale feedback. If reintroducing softness, change the tokens rather than adding 
 overrides -- the radius, shadow and motion scales all exist as tokens precisely so the language
 can be swapped in one file.
 
+**Visibility is one filter, shared.** `filterVisible()` in `lib/upcoming.ts` decides what
+counts as worth showing, and both the deadline list and the badge go through it. Keep it that
+way: if dismissing an assignment cleared the list but left the badge lit, dismissing would
+achieve nothing.
+
 Rules that survive any restyle:
 
 - **Red and amber mean urgency, never decoration.** Row colour comes from `urgencyOf()`, and

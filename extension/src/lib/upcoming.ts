@@ -33,13 +33,56 @@ export interface UpcomingGroup {
   items: UpcomingItem[]
 }
 
-export interface UpcomingOptions {
+/**
+ * Rules for what counts as worth showing.
+ *
+ * Overdue work you can no longer submit would otherwise sit in the list -- and
+ * in the badge count -- forever, so it ages out, and can also be dismissed
+ * outright.
+ */
+export interface VisibilityOptions {
   now?: Date
+  hideSubmitted?: boolean
+  /** Keys the user dismissed by hand. */
+  dismissed?: readonly string[]
+  /**
+   * Drop unsubmitted overdue work once it is older than this many days.
+   * 0 keeps overdue work indefinitely.
+   */
+  hideOverdueAfterDays?: number
+}
+
+export interface UpcomingOptions extends VisibilityOptions {
   /** How far ahead to look. */
   days?: number
-  hideSubmitted?: boolean
   /** Cap on rendered rows; the remainder is reported as hiddenCount. */
   max?: number
+}
+
+/** Applies the visibility rules shared by the deadline list and the badge. */
+export function filterVisible(
+  cached: CachedAssignment[],
+  opts: VisibilityOptions = {},
+): CachedAssignment[] {
+  const now = opts.now ?? new Date()
+  const dismissed = new Set(opts.dismissed ?? [])
+  const graceDays = opts.hideOverdueAfterDays ?? 0
+  const graceMs = graceDays > 0 ? graceDays * 86_400_000 : Infinity
+
+  return cached.filter((c) => {
+    if (dismissed.has(c.key)) return false
+
+    const t = new Date(c.dueIso).getTime()
+    if (Number.isNaN(t)) return false
+
+    const overdue = t < now.getTime()
+    // Submitted work that is already past due is simply done.
+    if (overdue && c.submitted) return false
+    if (opts.hideSubmitted && c.submitted) return false
+    // Aged-out overdue work: you are not going to submit it now.
+    if (overdue && now.getTime() - t > graceMs) return false
+    return true
+  })
 }
 
 export interface UpcomingView {
@@ -73,14 +116,9 @@ export function buildUpcoming(
   const horizon = startOfDay(now) + (days + 1) * 86_400_000
 
   const items: UpcomingItem[] = []
-  for (const c of cached) {
+  for (const c of filterVisible(cached, opts)) {
     const due = new Date(c.dueIso)
-    if (Number.isNaN(due.getTime())) continue
-
-    // Submitted work that is already past due is simply done; drop it.
     const overdue = due.getTime() < now.getTime()
-    if (overdue && c.submitted) continue
-    if (opts.hideSubmitted && c.submitted) continue
     if (due.getTime() >= horizon) continue
 
     items.push({
@@ -131,17 +169,19 @@ const GREEN = '#1a7f37'
  */
 export function badgeState(
   cached: CachedAssignment[],
-  now: Date = new Date(),
-  soonHours = 48,
+  opts: VisibilityOptions & { soonHours?: number } = {},
 ): BadgeState {
+  const now = opts.now ?? new Date()
+  const soonHours = opts.soonHours ?? 48
   const soonCutoff = now.getTime() + soonHours * 3_600_000
   let overdue = 0
   let soon = 0
 
-  for (const c of cached) {
+  // Same filter as the list: a dismissed or aged-out item must not keep the
+  // badge lit, which was the whole point of dismissing it.
+  for (const c of filterVisible(cached, opts)) {
     if (c.submitted) continue
     const t = new Date(c.dueIso).getTime()
-    if (Number.isNaN(t)) continue
     if (t < now.getTime()) overdue++
     else if (t <= soonCutoff) soon++
   }

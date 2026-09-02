@@ -8,6 +8,7 @@ const KEYS = {
   connected: 'googleConnected',
   assignments: 'assignmentCache',
   assignmentsAt: 'assignmentCacheAt',
+  dismissed: 'dismissedKeys',
 } as const
 
 export async function loadSettings(): Promise<SyncSettings> {
@@ -49,6 +50,33 @@ export async function loadAssignmentCache(): Promise<{ items: CachedAssignment[]
 
 export async function saveAssignmentCache(items: CachedAssignment[]): Promise<void> {
   await chrome.storage.local.set({ [KEYS.assignments]: items, [KEYS.assignmentsAt]: Date.now() })
+}
+
+/**
+ * Assignment keys the user dismissed by hand, stored with the time of
+ * dismissal so they can be pruned later if needed.
+ */
+export async function loadDismissed(): Promise<string[]> {
+  const got = await chrome.storage.local.get(KEYS.dismissed)
+  return Object.keys(got[KEYS.dismissed] ?? {})
+}
+
+export async function dismissAssignment(key: string): Promise<void> {
+  const got = await chrome.storage.local.get(KEYS.dismissed)
+  const map: Record<string, number> = got[KEYS.dismissed] ?? {}
+  map[key] = Date.now()
+  await chrome.storage.local.set({ [KEYS.dismissed]: map })
+}
+
+export async function undismissAssignment(key: string): Promise<void> {
+  const got = await chrome.storage.local.get(KEYS.dismissed)
+  const map: Record<string, number> = got[KEYS.dismissed] ?? {}
+  delete map[key]
+  await chrome.storage.local.set({ [KEYS.dismissed]: map })
+}
+
+export async function clearDismissed(): Promise<void> {
+  await chrome.storage.local.set({ [KEYS.dismissed]: {} })
 }
 
 export async function setGoogleConnected(v: boolean): Promise<void> {
