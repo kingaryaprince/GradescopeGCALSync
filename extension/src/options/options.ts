@@ -64,8 +64,9 @@ function paintTheme(active: SyncSettings['theme']): void {
   const idx = Math.max(0, buttons.findIndex((b) => b.dataset['themeValue'] === active))
   const target = buttons[idx]!
   for (const b of buttons) b.setAttribute('aria-pressed', String(b === target))
+  // offsetLeft is relative to the padded track, so no manual correction.
   thumb.style.width = `${target.offsetWidth}px`
-  thumb.style.transform = `translateX(${target.offsetLeft - 3}px)`
+  thumb.style.transform = `translateX(${target.offsetLeft}px)`
 }
 
 function fillForm(s: SyncSettings): void {
@@ -231,6 +232,10 @@ el.theme.addEventListener('click', (e) => {
   paintTheme(value)
   void saveSettings({ theme: value })
 })
+
+// The thumb needs real layout metrics, which are 0 during initial parse.
+window.addEventListener('load', () => void (async () => paintTheme((await loadSettings()).theme))())
+window.addEventListener('resize', () => void (async () => paintTheme((await loadSettings()).theme))())
 
 void (async () => {
   await initTheme()

@@ -287,9 +287,16 @@ function busy(on: boolean, label?: string): void {
     els.status.replaceChildren()
     const loader = document.createElement('span')
     loader.className = 'loader'
-    for (let i = 0; i < 4; i++) loader.append(document.createElement('i'))
-    els.status.append(loader, document.createTextNode(` ${label}`))
-    els.status.className = 'status muted'
+    // Three blocks, then three shadows: the CSS pairs them by nth-child.
+    for (let i = 0; i < 3; i++) loader.append(document.createElement('i'))
+    for (let i = 0; i < 3; i++) loader.append(document.createElement('b'))
+
+    const text = document.createElement('span')
+    text.className = 'status-label'
+    text.textContent = label
+
+    els.status.append(loader, text)
+    els.status.className = 'status muted busy'
   }
 }
 

@@ -244,47 +244,104 @@ input[type='checkbox']:focus-visible { outline: 2px solid var(--accent); outline
 
 /* --------------------------------- loader --------------------------------- */
 
-/* Square blocks rather than dots, to match the rectilinear language. */
+/**
+ * Three blocks bouncing out of phase, with a shadow that stretches as each one
+ * lands. Squares rather than circles, and hard shadow bars rather than blurred
+ * ellipses, to match the rectilinear language -- but the squash-and-stretch
+ * timing from the reference is what gives it life, so that is kept.
+ */
 .loader {
-  display: inline-block;
   position: relative;
-  width: 13px;
-  height: 13px;
-  vertical-align: -2px;
-  animation: loader-spin 2s steps(4, end) infinite;
+  display: block;
+  width: 62px;
+  height: 26px;
+  margin: 0 auto;
 }
-.loader i { position: absolute; width: 5px; height: 5px; background: var(--accent); }
-.loader i:nth-child(1) { top: 0; left: 0; }
-.loader i:nth-child(2) { top: 0; right: 0; }
-.loader i:nth-child(3) { bottom: 0; left: 0; }
-.loader i:nth-child(4) { bottom: 0; right: 0; }
+.loader i {
+  position: absolute;
+  bottom: 6px;
+  width: 9px;
+  height: 9px;
+  background: var(--accent);
+  transform-origin: 50% 100%;
+  animation: block-bounce 0.5s ease alternate infinite;
+}
+.loader i:nth-child(1) { left: 2px; }
+.loader i:nth-child(2) { left: 26px; animation-delay: 0.11s; }
+.loader i:nth-child(3) { left: 50px; animation-delay: 0.22s; }
 
-@keyframes loader-spin { to { transform: rotate(360deg); } }
+/* Shadows are separate so they can stretch independently of the block. */
+.loader b {
+  position: absolute;
+  bottom: 1px;
+  width: 9px;
+  height: 2px;
+  background: var(--muted);
+  transform-origin: 50% 50%;
+  animation: block-shadow 0.5s ease alternate infinite;
+}
+.loader b:nth-child(4) { left: 2px; }
+.loader b:nth-child(5) { left: 26px; animation-delay: 0.11s; }
+.loader b:nth-child(6) { left: 50px; animation-delay: 0.22s; }
 
-/* ---------------------------- segmented control ---------------------------- */
+@keyframes block-bounce {
+  0%   { transform: translateY(0) scale(1.5, 0.42); }
+  38%  { transform: translateY(-7px) scale(1, 1); }
+  100% { transform: translateY(-17px) scale(0.9, 1.1); }
+}
 
+@keyframes block-shadow {
+  0%   { transform: scaleX(1.6); opacity: 0.85; }
+  38%  { transform: scaleX(1); opacity: 0.5; }
+  100% { transform: scaleX(0.25); opacity: 0.25; }
+}
+
+/* ------------------------------ theme switch ------------------------------ */
+
+/**
+ * One control, not three buttons.
+ *
+ * A sliding thumb travels between positions, so the whole thing reads as a
+ * single switch. The reskin previously hid the thumb and left solid fills,
+ * which made it look like three unrelated buttons.
+ */
 .segmented {
   position: relative;
   display: inline-flex;
-  padding: 0;
-  background: transparent;
+  padding: 2px;
+  background: var(--surface-hi);
   border: 1.5px solid var(--line);
   border-radius: 0;
+  isolation: isolate;
 }
 .segmented button {
+  position: relative;
+  z-index: 1;
   border: none;
-  border-right: 1.5px solid var(--rule);
   padding: 6px 13px;
   color: var(--muted);
+  background: transparent;
+  transition: color 0.22s linear;
 }
-.segmented button:last-child { border-right: none; }
-.segmented button::before { background: var(--fg); }
+/* The base button's wipe fill and lift would fight the thumb. */
+.segmented button::before,
+.segmented button::after { display: none; }
 .segmented button:hover:not(:disabled),
 .segmented button:active:not(:disabled) { transform: none; box-shadow: none; }
-.segmented button[aria-pressed='true'] { color: var(--accent-fg); background: var(--accent); }
-.segmented button[aria-pressed='true']:hover { color: var(--bg); }
-/* The sliding thumb belonged to the pill; selection is now a solid fill. */
-.segmented .thumb { display: none; }
+.segmented button:hover:not(:disabled) { color: var(--fg); }
+.segmented button[aria-pressed='true'] { color: var(--accent-fg); }
+.segmented button[aria-pressed='true']:hover { color: var(--accent-fg); }
+
+.segmented .thumb {
+  position: absolute;
+  z-index: 0;
+  top: 2px;
+  bottom: 2px;
+  left: 0;
+  background: var(--accent);
+  /* Spring easing so the thumb settles rather than sliding linearly. */
+  transition: transform 0.42s var(--spring), width 0.42s var(--spring);
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
