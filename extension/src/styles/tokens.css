@@ -1,3 +1,13 @@
+/* Self-hosted so the extension makes no external requests, which keeps the
+   privacy policy honest. Weight-only variable axis, latin subset, 48KB. */
+@font-face {
+  font-family: 'Inter';
+  src: url('./inter-latin.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 /**
  * Design tokens.
  *
@@ -16,10 +26,14 @@
   --line: #d8dee4;
 
   /* Accent */
-  --accent: #5b5bd6;
-  --accent-hi: #7c6cf0;
+  --accent: #17849b;
+  --accent-hi: #2c9caf;
   --accent-fg: #ffffff;
-  --accent-grad: linear-gradient(135deg, #5b5bd6 0%, #8b5cf6 55%, #a855f7 100%);
+  --accent-grad: linear-gradient(135deg, #11697f 0%, #2c9caf 55%, #56bccb 100%);
+  --accent-soft: rgba(44, 156, 175, 0.13);
+
+  /* Type */
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
 
   /* Urgency */
   --ok: #1a7f37;
@@ -35,7 +49,8 @@
   /* Layered shadows, as in the reference snippets */
   --sh-1: rgba(50, 50, 93, 0.12) 0 2px 5px -1px, rgba(0, 0, 0, 0.14) 0 1px 3px -1px;
   --sh-2: rgba(50, 50, 93, 0.18) 0 6px 14px -2px, rgba(0, 0, 0, 0.16) 0 2px 6px -2px;
-  --sh-accent: rgba(91, 91, 214, 0.35) 0 4px 12px -2px;
+  --sh-glass: rgba(0, 0, 0, 0.1) 0 8px 26px -6px;
+  --sh-accent: rgba(23, 132, 155, 0.34) 0 4px 12px -2px;
 
   /* Motion */
   --spring: cubic-bezier(0.16, 1, 0.3, 1);
@@ -54,8 +69,9 @@
     --fg: #e6edf3;
     --muted: #9198a1;
     --line: #333b47;
-    --accent: #7c6cf0;
-    --accent-hi: #9b8dff;
+    --accent: #46b3c6;
+    --accent-hi: #70cddd;
+    --accent-soft: rgba(70, 179, 198, 0.16);
     --err: #ff6b74;
     --warn: #e3b341;
     --ok: #3fb950;
@@ -71,8 +87,9 @@ html[data-theme='dark'] {
   --fg: #e6edf3;
   --muted: #9198a1;
   --line: #333b47;
-  --accent: #7c6cf0;
-  --accent-hi: #9b8dff;
+  --accent: #46b3c6;
+  --accent-hi: #70cddd;
+  --accent-soft: rgba(70, 179, 198, 0.16);
   --err: #ff6b74;
   --warn: #e3b341;
   --ok: #3fb950;
@@ -106,7 +123,33 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   font-weight: 550;
   box-shadow: var(--sh-accent);
 }
-.primary:hover:not(:disabled) { box-shadow: rgba(91, 91, 214, 0.45) 0 6px 18px -2px; }
+.primary:hover:not(:disabled) { box-shadow: rgba(23, 132, 155, 0.46) 0 6px 18px -2px; }
+
+/* Sweep fill, adapted from the reference outline button: a skewed panel wipes
+   across on hover. Shortened from 1s to 0.45s -- at popup scale a full second
+   reads as lag rather than polish. */
+.sweep {
+  position: relative;
+  overflow: hidden;
+  z-index: 0;
+  border-color: var(--accent);
+  color: var(--accent);
+  background: transparent;
+}
+.sweep::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  left: -40%;
+  width: 0;
+  height: 100%;
+  background: var(--accent-grad);
+  transform: skewX(28deg);
+  transition: width 0.45s var(--ease);
+}
+.sweep:hover:not(:disabled) { color: var(--accent-fg); border-color: transparent; }
+.sweep:hover:not(:disabled)::before { width: 190%; }
 
 .link-btn {
   border: none;

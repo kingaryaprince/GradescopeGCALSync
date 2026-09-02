@@ -1,8 +1,9 @@
 import type { Request, Response, SyncNowData } from '../lib/messages'
 import { isOAuthConfigured } from '../lib/oauth'
-import { initTheme } from '../lib/theme'
+import { applyTheme, initTheme } from '../lib/theme'
 import { groupCoursesByTerm, type CourseGroup } from '../lib/terms'
 import { isGoogleConnected, loadAssignmentCache, loadCourseCache, loadReport, loadSettings, saveSettings } from '../lib/storage'
+import { courseColor } from '../lib/colors'
 import { buildUpcoming, relativeTime, urgencyOf, type CachedAssignment } from '../lib/upcoming'
 import type { Course, SyncReport } from '../lib/types'
 
@@ -25,6 +26,7 @@ const els = {
   toggleCourses: $<HTMLButtonElement>('toggle-courses'),
   coursesCard: $<HTMLElement>('courses-card'),
   settings: $<HTMLButtonElement>('settings'),
+  themeBtn: $<HTMLButtonElement>('theme-btn'),
 }
 
 function send<T>(msg: Request): Promise<T> {
@@ -87,6 +89,10 @@ function upcomingRow(item: ReturnType<typeof buildUpcoming>['groups'][number]['i
     row.rel = 'noreferrer'
   }
 
+  const chip = document.createElement('span')
+  chip.className = 'chip'
+  chip.style.background = courseColor(item.courseId)
+
   const main = document.createElement('span')
   main.className = 'up-main'
   const title = document.createElement('span')
@@ -96,6 +102,7 @@ function upcomingRow(item: ReturnType<typeof buildUpcoming>['groups'][number]['i
   course.className = 'up-course'
   course.textContent = item.course
   main.append(title, course)
+  row.append(chip)
 
   const when = document.createElement('span')
   when.className = 'up-when'
@@ -168,6 +175,10 @@ function courseRow(c: Course, checked: boolean): HTMLLabelElement {
   cb.checked = checked
   cb.addEventListener('change', () => void onToggle())
 
+  const chip = document.createElement('span')
+  chip.className = 'chip'
+  chip.style.background = courseColor(c.id)
+
   const text = document.createElement('span')
   text.className = 'course-text'
   const name = document.createElement('span')
@@ -179,7 +190,7 @@ function courseRow(c: Course, checked: boolean): HTMLLabelElement {
   sub.textContent = c.name !== c.shortName ? c.name : ''
   text.append(name, sub)
 
-  label.append(cb, text)
+  label.append(cb, chip, text)
   return label
 }
 
@@ -292,6 +303,7 @@ async function init(): Promise<void> {
   ])
 
   cachedDeadlines = deadlines.items
+  paintThemeButton(settings.theme)
   renderUpcoming()
   // Nothing to show yet means the user still has setup to do; lead with courses.
   els.coursesCard.hidden = deadlines.items.length > 0 && settings.selectedCourseIds.length > 0
@@ -307,7 +319,13 @@ async function init(): Promise<void> {
   if (report) setStatus(describe(report), report.ok ? 'ok' : 'err')
 
   // Cached list renders instantly; refresh quietly in the background.
-  if (cached.length === 0) void refreshCourses(true)
+  if (cached.length === 0) {
+    void refreshCourses(true)
+  } else if (deadlines.items.length === 0 && settings.selectedCourseIds.length > 0) {
+    // Courses are picked but no deadlines are cached (e.g. cache predates this
+    // feature, or was cleared). Fetch them rather than showing an empty list.
+    void refreshDeadlinesOnly()
+  }
 }
 
 async function refreshCourses(quiet = false): Promise<void> {
@@ -332,6 +350,21 @@ async function refreshCourses(quiet = false): Promise<void> {
   }
 }
 
+/** Fills the dashboard without re-listing courses. */
+async function refreshDeadlinesOnly(): Promise<void> {
+  busy(true, 'Loading deadlines\u2026')
+  try {
+    await send({ type: 'REFRESH_DEADLINES' })
+    cachedDeadlines = (await loadAssignmentCache()).items
+    renderUpcoming()
+    setStatus('')
+  } catch (err) {
+    explain(err as Error)
+  } finally {
+    busy(false)
+  }
+}
+
 els.refresh.addEventListener('click', () => void refreshCourses())
 els.toggleSubmitted.addEventListener('click', () => {
   hideSubmitted = !hideSubmitted
@@ -342,6 +375,24 @@ els.toggleCourses.addEventListener('click', () => {
 })
 els.selAll.addEventListener('click', () => setAll(true))
 els.selNone.addEventListener('click', () => setAll(false))
+
+const THEMES = ['auto', 'light', 'dark'] as const
+const THEME_GLYPH = { auto: '\u25D0', light: '\u2600', dark: '\u263D' } as const
+
+function paintThemeButton(t: (typeof THEMES)[number]): void {
+  els.themeBtn.textContent = THEME_GLYPH[t]
+  els.themeBtn.title = `Theme: ${t}`
+}
+
+els.themeBtn.addEventListener('click', () => {
+  void (async () => {
+    const current = (await loadSettings()).theme
+    const next = THEMES[(THEMES.indexOf(current) + 1) % THEMES.length]!
+    applyTheme(next)
+    paintThemeButton(next)
+    await saveSettings({ theme: next })
+  })()
+})
 
 els.settings.addEventListener('click', () => void chrome.runtime.openOptionsPage())
 

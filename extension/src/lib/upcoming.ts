@@ -20,6 +20,8 @@ export interface UpcomingItem {
   key: string
   title: string
   course: string
+  /** Kept so the UI can derive a stable per-course colour. */
+  courseId: string
   due: Date
   submitted: boolean
   overdue: boolean
@@ -85,6 +87,7 @@ export function buildUpcoming(
       key: c.key,
       title: c.title,
       course: c.courseShortName,
+      courseId: c.courseId,
       due,
       submitted: c.submitted,
       overdue,
