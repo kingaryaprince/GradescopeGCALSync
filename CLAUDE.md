@@ -8,7 +8,7 @@ changing anything; several decisions here look arbitrary but are load-bearing.
 ```bash
 cd extension
 npm install
-npm test          # 60 unit tests, no network or browser
+npm test          # unit tests; no network or browser needed
 npm run build     # typecheck + vite build + verify-dist
 npm run typecheck
 npm run zip       # release.zip for the Web Store
