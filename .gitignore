@@ -1,21 +1,20 @@
-# --- Python cache ---
+# --- Node / build ---
+node_modules/
+dist/
+release.zip
+*.tsbuildinfo
+
+# --- Python (legacy script) ---
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-*.pkl
-
-# --- Virtual environments ---
 .venv/
-env/
 venv/
+env/
 
-# --- IDE/editor configs ---
+# --- IDE / OS ---
 .idea/
 *.iml
 .vscode/
-
-# --- OS files ---
 .DS_Store
 
 # --- Secrets & tokens ---
@@ -26,3 +25,7 @@ token.json
 # --- Binaries ---
 chromedriver
 geckodriver
+
+# --- Extension signing key (never commit) ---
+extension-key.pem
+*.pem

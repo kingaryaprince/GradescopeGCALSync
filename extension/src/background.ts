@@ -1,0 +1,263 @@
+import { buildIcs, icsFilename } from './lib/calendar/ics'
+import {
+  GoogleCalendarBackend,
+  createCalendar,
+  getAuthToken,
+  listCalendars,
+  revokeAccess,
+} from './lib/calendar/gcal'
+import { fromWire, fail, ok, type Request, type Response, type ScrapeAssignmentsData, type ScrapeCoursesData } from './lib/messages'
+import {
+  loadCourseCache,
+  loadSettings,
+  saveCourseCache,
+  saveReport,
+  saveSettings,
+  setGoogleConnected,
+} from './lib/storage'
+import { buildDesiredEvents, reconcile, shouldInclude } from './lib/sync'
+import type { Assignment, Course, SyncReport } from './lib/types'
+
+const OFFSCREEN_PATH = 'offscreen.html'
+const ALARM = 'gradescope-autosync'
+
+// ------------------------- offscreen plumbing -------------------------
+
+let creating: Promise<void> | null = null
+
+/** Creates the offscreen document once; createDocument throws if one exists. */
+async function ensureOffscreen(): Promise<void> {
+  const existing = await chrome.runtime.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT' as chrome.runtime.ContextType],
+  })
+  if (existing.length > 0) return
+
+  if (creating) {
+    await creating
+    return
+  }
+  creating = chrome.offscreen.createDocument({
+    url: OFFSCREEN_PATH,
+    reasons: ['DOM_PARSER' as chrome.offscreen.Reason],
+    justification: 'Parse Gradescope assignment pages, which requires a DOM.',
+  })
+  try {
+    await creating
+  } finally {
+    creating = null
+  }
+}
+
+async function askOffscreen<T>(msg: Request): Promise<T> {
+  await ensureOffscreen()
+  const res = (await chrome.runtime.sendMessage({ ...msg, target: 'offscreen' })) as Response<T>
+  if (!res) throw new Error('The Gradescope worker did not respond. Try again.')
+  if (!res.ok) {
+    const err = new Error(res.error)
+    if (res.kind) err.name = res.kind
+    throw err
+  }
+  return res.data
+}
+
+// ---------------------------- course list ----------------------------
+
+async function refreshCourses(): Promise<Course[]> {
+  const hadCache = (await loadCourseCache()).length > 0
+  const data = await askOffscreen<ScrapeCoursesData>({ type: 'SCRAPE_COURSES' })
+  await saveCourseCache(data.courses)
+
+  // First successful load: opt the user into everything so sync does something
+  // useful immediately, rather than silently syncing nothing.
+  const settings = await loadSettings()
+  if (!hadCache && settings.selectedCourseIds.length === 0 && data.courses.length > 0) {
+    await saveSettings({ selectedCourseIds: data.courses.map((c) => c.id) })
+  }
+  return data.courses
+}
+
+/** Fetches assignments for the selected courses, tracking per-course failures. */
+async function collectAssignments(courses: Course[]): Promise<{
+  entries: Array<{ assignment: Assignment; course: Course }>
+  scrapedOk: Set<string>
+  warnings: string[]
+}> {
+  const entries: Array<{ assignment: Assignment; course: Course }> = []
+  const scrapedOk = new Set<string>()
+  const warnings: string[] = []
+
+  for (const course of courses) {
+    try {
+      const data = await askOffscreen<ScrapeAssignmentsData>({ type: 'SCRAPE_ASSIGNMENTS', course })
+      scrapedOk.add(course.id)
+      for (const a of data.assignments) entries.push({ assignment: fromWire(a), course })
+      for (const w of data.warnings) warnings.push(`${course.shortName}: ${w}`)
+
+      // Early warning that Gradescope's markup moved: we still parsed the page,
+      // but only via the generic fallback. Surfaced so breakage is visible
+      // before it turns into silently missing assignments.
+      if (data.strategy === 'structural') {
+        warnings.push(
+          `${course.shortName}: read using the fallback parser (Gradescope's page layout may have changed).`,
+        )
+      }
+    } catch (err) {
+      // Deliberately not added to scrapedOk, so reconcile will not treat this
+      // course's existing events as stale and delete them.
+      warnings.push(`${course.shortName}: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+  return { entries, scrapedOk, warnings }
+}
+
+// ------------------------------- sync -------------------------------
+
+async function runSync(): Promise<SyncReport> {
+  const started = Date.now()
+  try {
+    const settings = await loadSettings()
+    const all = await refreshCourses()
+    const selected = all.filter((c) => settings.selectedCourseIds.includes(c.id))
+
+    if (selected.length === 0) {
+      throw new Error('No courses selected. Choose the courses you want synced.')
+    }
+
+    const { entries, scrapedOk, warnings } = await collectAssignments(selected)
+    const desired = buildDesiredEvents(entries, settings)
+
+    // Safe to prune: courses we read successfully, plus courses the user turned
+    // off (so their leftover events get cleaned up).
+    const deletable = new Set(scrapedOk)
+    for (const c of all) if (!settings.selectedCourseIds.includes(c.id)) deletable.add(c.id)
+
+    const backend = new GoogleCalendarBackend(settings.calendarId)
+    const { stats, warnings: syncWarnings } = await reconcile(desired, backend, {
+      deletableCourseIds: deletable,
+      removeStale: settings.removeStale,
+    })
+
+    const report: SyncReport = {
+      ...stats,
+      at: started,
+      ok: true,
+      warnings: [...warnings, ...syncWarnings],
+    }
+    await saveReport(report)
+    await setGoogleConnected(true)
+    setBadge(stats.failed > 0 ? 'warn' : 'ok')
+    return report
+  } catch (err) {
+    const report: SyncReport = {
+      created: 0, updated: 0, deleted: 0, skipped: 0, failed: 0,
+      at: started,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+      warnings: [],
+    }
+    await saveReport(report)
+    setBadge('error')
+    return report
+  }
+}
+
+function setBadge(state: 'ok' | 'warn' | 'error'): void {
+  const cfg = {
+    ok: { text: '', color: '#1a7f37' },
+    warn: { text: '!', color: '#bf8700' },
+    error: { text: '!', color: '#cf222e' },
+  }[state]
+  void chrome.action.setBadgeText({ text: cfg.text })
+  void chrome.action.setBadgeBackgroundColor({ color: cfg.color })
+}
+
+async function exportIcs(): Promise<{ ics: string; filename: string; count: number }> {
+  const settings = await loadSettings()
+  const all = await refreshCourses()
+  const selected = all.filter((c) => settings.selectedCourseIds.includes(c.id))
+  const { entries } = await collectAssignments(selected.length > 0 ? selected : all)
+
+  const kept = entries.filter((e) => e.assignment.due && shouldInclude(e.assignment.title, settings))
+  const ics = buildIcs(kept, {
+    calendarName: 'Gradescope',
+    durationMinutes: settings.durationMinutes,
+    reminderMinutes: settings.reminderMinutes,
+    prefixCourse: settings.prefixCourse,
+  })
+  return { ics, filename: icsFilename(settings), count: kept.length }
+}
+
+// ----------------------------- messaging -----------------------------
+
+chrome.runtime.onMessage.addListener(
+  (msg: Request & { target?: string }, _sender, sendResponse: (r: Response) => void) => {
+    // Offscreen has its own listener; ignore anything addressed to it.
+    if (msg.target === 'offscreen') return false
+
+    void (async () => {
+      try {
+        switch (msg.type) {
+          case 'SYNC_NOW':
+            sendResponse(ok({ report: await runSync() }))
+            break
+          case 'REFRESH_COURSES':
+            sendResponse(ok({ courses: await refreshCourses() }))
+            break
+          case 'EXPORT_ICS':
+            sendResponse(ok(await exportIcs()))
+            break
+          case 'CONNECT_GOOGLE':
+            await getAuthToken(true)
+            await setGoogleConnected(true)
+            sendResponse(ok({ connected: true }))
+            break
+          case 'DISCONNECT_GOOGLE':
+            await revokeAccess()
+            await setGoogleConnected(false)
+            sendResponse(ok({ connected: false }))
+            break
+          case 'LIST_CALENDARS':
+            sendResponse(ok({ calendars: await listCalendars() }))
+            break
+          case 'CREATE_CALENDAR':
+            sendResponse(ok({ calendar: await createCalendar(msg.name) }))
+            break
+          default:
+            sendResponse(fail(new Error('Unknown request')))
+        }
+      } catch (err) {
+        sendResponse(fail(err))
+      }
+    })()
+
+    return true
+  },
+)
+
+// ------------------------------ schedule ------------------------------
+
+async function installAlarm(): Promise<void> {
+  const settings = await loadSettings()
+  await chrome.alarms.clear(ALARM)
+  if (!settings.autoSync) return
+  chrome.alarms.create(ALARM, {
+    periodInMinutes: Math.max(1, settings.autoSyncHours) * 60,
+    delayInMinutes: 1,
+  })
+}
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === ALARM) void runSync()
+})
+
+chrome.runtime.onInstalled.addListener((details) => {
+  void installAlarm()
+  if (details.reason === 'install') void chrome.runtime.openOptionsPage()
+})
+
+chrome.runtime.onStartup.addListener(() => void installAlarm())
+
+// Keep the alarm in step with the user's schedule preference.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'sync' && changes['settings']) void installAlarm()
+})
