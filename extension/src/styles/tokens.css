@@ -123,7 +123,9 @@ button {
   cursor: pointer;
   overflow: hidden;
   z-index: 0;
-  transition: color var(--fast) linear, border-color var(--fast) linear;
+  box-shadow: 0 0 0 var(--line);
+  transition: color 0.16s linear, border-color 0.16s linear,
+    transform 0.3s var(--spring), box-shadow 0.3s var(--spring);
 }
 
 /* Fill wipes in from the left, so hover inverts the button rather than
@@ -135,11 +137,15 @@ button::before {
   inset: 0 auto 0 0;
   width: 0;
   background: var(--fg);
-  transition: width var(--slow) var(--ease);
+  transition: width 0.46s var(--spring);
 }
 button:hover:not(:disabled) { color: var(--bg); }
 button:hover:not(:disabled)::before { width: 100%; }
-button:active:not(:disabled) { transform: translate(1px, 1px); }
+
+/* Offset-shadow "lift" is the squared-off equivalent of the previous
+   scale-and-blur hover: the element steps off the page, then presses back in. */
+button:hover:not(:disabled) { transform: translate(-2px, -2px); box-shadow: 4px 4px 0 var(--line); }
+button:active:not(:disabled) { transform: translate(1px, 1px); box-shadow: 0 0 0 var(--line); }
 button:disabled { opacity: 0.4; cursor: default; }
 button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -174,7 +180,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   border-bottom: 1.5px solid transparent;
 }
 .link-btn::before { display: none; }
-.link-btn:hover:not(:disabled) { color: var(--accent); border-bottom-color: var(--accent); }
+.link-btn, .link-btn:hover:not(:disabled), .link-btn:active:not(:disabled) { box-shadow: none; }
+.link-btn:hover:not(:disabled) { color: var(--accent); border-bottom-color: var(--accent); transform: none; }
 .link-btn:active:not(:disabled) { transform: translate(0, 1px); }
 
 .icon-btn {
@@ -185,7 +192,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   color: var(--muted);
 }
 .icon-btn::before { display: none; }
-.icon-btn:hover:not(:disabled) { color: var(--fg); }
+.icon-btn, .icon-btn:hover:not(:disabled), .icon-btn:active:not(:disabled) { box-shadow: none; }
+.icon-btn:hover:not(:disabled) { color: var(--fg); transform: scale(1.12); }
+.icon-btn:active:not(:disabled) { transform: scale(0.94); }
 
 /* Kept so existing markup using .sweep still renders; the base button now
    carries the wipe, so this only shifts the fill to the accent. */
@@ -206,24 +215,29 @@ input[type='checkbox'] {
   border-radius: 0;
   background: transparent;
   cursor: pointer;
-  transition: background var(--fast) linear;
+  transition: background var(--fast) linear, transform 0.28s var(--spring),
+    border-color var(--fast) linear;
 }
-input[type='checkbox']:hover { background: var(--surface-hi); }
+input[type='checkbox']:hover { background: var(--surface-hi); transform: scale(1.12); }
+input[type='checkbox']:active { transform: scale(0.9); }
 input[type='checkbox']:checked { background: var(--fg); }
 
 /* Tick draws itself; no ink bloom, which suited the softer language. */
+/* Centred via transform rather than hand-tuned offsets, so the tick stays put
+   if the box size changes. The -58% Y nudge accounts for the rotated glyph
+   sitting visually low when centred geometrically. */
 input[type='checkbox']::after {
   content: '';
   position: absolute;
-  left: 3px;
-  top: 1px;
-  width: 5px;
+  left: 50%;
+  top: 50%;
+  width: 4px;
   height: 8px;
-  border-right: 1.5px solid var(--bg);
-  border-bottom: 1.5px solid var(--bg);
-  transform: rotate(40deg);
+  border-right: 2px solid var(--bg);
+  border-bottom: 2px solid var(--bg);
+  transform: translate(-50%, -58%) rotate(45deg);
   clip-path: inset(0 100% 0 0);
-  transition: clip-path var(--slow) var(--ease);
+  transition: clip-path 0.34s var(--spring);
 }
 input[type='checkbox']:checked::after { clip-path: inset(0 0 0 0); }
 input[type='checkbox']:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -265,6 +279,8 @@ input[type='checkbox']:focus-visible { outline: 2px solid var(--accent); outline
 }
 .segmented button:last-child { border-right: none; }
 .segmented button::before { background: var(--fg); }
+.segmented button:hover:not(:disabled),
+.segmented button:active:not(:disabled) { transform: none; box-shadow: none; }
 .segmented button[aria-pressed='true'] { color: var(--accent-fg); background: var(--accent); }
 .segmented button[aria-pressed='true']:hover { color: var(--bg); }
 /* The sliding thumb belonged to the pill; selection is now a solid fill. */
