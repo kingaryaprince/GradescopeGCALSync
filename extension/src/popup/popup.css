@@ -212,3 +212,5 @@ body {
   padding-top: 4px;
 }
 .status-label { display: block; }
+
+.load-btn { margin-top: 4px; width: 100%; }

@@ -118,9 +118,15 @@
         <label class="field">
           <span>How often</span>
           <span class="inline">
-            every <input id="auto-hours" type="number" min="1" max="168" /> hours
+            every <input id="auto-hours" type="number" min="0.25" max="168" step="0.25" /> hours
           </span>
         </label>
+        <p class="hint">
+          Minimum 15 minutes (0.25). Each sync loads one page per selected course, so shorter
+          intervals put real load on Gradescope without helping: assignments are published days
+          ahead, not minutes. Syncing also only runs while Chrome is open, but reminders fire
+          from Google Calendar either way.
+        </p>
       </section>
 
       <section class="card">

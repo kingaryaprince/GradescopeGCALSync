@@ -20,12 +20,15 @@ import {
 } from './lib/storage'
 import { buildSnapshot, diffForNotifications, fireNotices, registerNotificationClicks, type Snapshot } from './lib/notify'
 import { buildDesiredEvents, reconcile, shouldInclude } from './lib/sync'
+import { groupCoursesByTerm } from './lib/terms'
 import { badgeState, type CachedAssignment } from './lib/upcoming'
 import type { Assignment, Course, SyncReport } from './lib/types'
 
 const OFFSCREEN_PATH = 'offscreen.html'
 const ALARM = 'gradescope-autosync'
 const SNAPSHOT_KEY = 'gradeSnapshot'
+/** 15 minutes. Chrome allows tighter alarms, but Gradescope should not be polled harder. */
+export const MIN_SYNC_HOURS = 0.25
 
 // ------------------------- offscreen plumbing -------------------------
 
@@ -73,11 +76,17 @@ async function refreshCourses(): Promise<Course[]> {
   const data = await askOffscreen<ScrapeCoursesData>({ type: 'SCRAPE_COURSES' })
   await saveCourseCache(data.courses)
 
-  // First successful load: opt the user into everything so sync does something
-  // useful immediately, rather than silently syncing nothing.
+  // First successful load: opt the user into current and upcoming terms only.
+  // Selecting every course meant scraping a page per course on every sync,
+  // including terms that ended years ago.
   const settings = await loadSettings()
   if (!hadCache && settings.selectedCourseIds.length === 0 && data.courses.length > 0) {
-    await saveSettings({ selectedCourseIds: data.courses.map((c) => c.id) })
+    const recent = groupCoursesByTerm(data.courses)
+      .filter((g) => g.isRecent)
+      .flatMap((g) => g.courses.map((c) => c.id))
+    await saveSettings({
+      selectedCourseIds: recent.length > 0 ? recent : data.courses.map((c) => c.id),
+    })
   }
   return data.courses
 }
@@ -311,7 +320,9 @@ async function installAlarm(): Promise<void> {
   await chrome.alarms.clear(ALARM)
   if (!settings.autoSync) return
   chrome.alarms.create(ALARM, {
-    periodInMinutes: Math.max(1, settings.autoSyncHours) * 60,
+    // Floored at 15 minutes: each sync fetches one page per selected course,
+    // so anything tighter hammers Gradescope for no practical benefit.
+    periodInMinutes: Math.max(MIN_SYNC_HOURS, settings.autoSyncHours) * 60,
     delayInMinutes: 1,
   })
 }

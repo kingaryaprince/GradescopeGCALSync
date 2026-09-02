@@ -29,17 +29,32 @@ const els = {
   themeBtn: $<HTMLButtonElement>('theme-btn'),
 }
 
+const SEND_TIMEOUT_MS = 120_000
+
 function send<T>(msg: Request): Promise<T> {
   return new Promise((resolve, reject) => {
+    // Scraping many courses is slow, but it must still be bounded: without a
+    // timeout a dropped response leaves the UI stuck in a loading state.
+    const timer = setTimeout(
+      () => reject(new Error('That took too long. Check your connection and try again.')),
+      SEND_TIMEOUT_MS,
+    )
+    const done = <R>(fn: (v: R) => void) => (v: R) => {
+      clearTimeout(timer)
+      fn(v)
+    }
+    const ok_ = done(resolve as (v: unknown) => void)
+    const bad = done(reject as (v: unknown) => void)
+
     chrome.runtime.sendMessage(msg, (res: Response<T>) => {
-      if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message))
-      if (!res) return reject(new Error('No response from the extension.'))
+      if (chrome.runtime.lastError) return bad(new Error(chrome.runtime.lastError.message))
+      if (!res) return bad(new Error('No response from the extension.'))
       if (!res.ok) {
         const e = new Error(res.error)
         if (res.kind) e.name = res.kind
-        return reject(e)
+        return bad(e)
       }
-      resolve(res.data)
+      ok_(res.data)
     })
   })
 }
@@ -123,6 +138,19 @@ function upcomingRow(item: ReturnType<typeof buildUpcoming>['groups'][number]['i
     row.append(check)
   }
   return row
+}
+
+/** Offers a one-click load when courses are selected but nothing is cached. */
+function showEmptyPrompt(): void {
+  els.upcoming.replaceChildren()
+  const p = document.createElement('p')
+  p.className = 'muted'
+  p.textContent = 'No deadlines loaded yet.'
+  const btn = document.createElement('button')
+  btn.className = 'sweep load-btn'
+  btn.textContent = 'Load deadlines'
+  btn.addEventListener('click', () => void refreshDeadlinesOnly())
+  els.upcoming.append(p, btn)
 }
 
 function renderUpcoming(): void {
@@ -283,7 +311,15 @@ function busy(on: boolean, label?: string): void {
   for (const b of [els.sync, els.ics, els.refresh]) b.disabled = on
   // Sync stays unavailable without OAuth, regardless of busy state.
   if (!on && !isOAuthConfigured()) els.sync.disabled = true
-  if (on && label) {
+
+  // Clearing here rather than relying on each caller to call setStatus()
+  // afterwards: any path that forgot left the loader running forever.
+  if (!on) {
+    if (els.status.classList.contains('busy')) setStatus('')
+    return
+  }
+
+  if (label) {
     els.status.replaceChildren()
     const loader = document.createElement('span')
     loader.className = 'loader'
@@ -325,13 +361,14 @@ async function init(): Promise<void> {
   renderCourses(cached, settings.selectedCourseIds)
   if (report) setStatus(describe(report), report.ok ? 'ok' : 'err')
 
-  // Cached list renders instantly; refresh quietly in the background.
+  // Cached list renders instantly; only fetch when we have nothing at all.
   if (cached.length === 0) {
     void refreshCourses(true)
   } else if (deadlines.items.length === 0 && settings.selectedCourseIds.length > 0) {
-    // Courses are picked but no deadlines are cached (e.g. cache predates this
-    // feature, or was cleared). Fetch them rather than showing an empty list.
-    void refreshDeadlinesOnly()
+    // Courses are picked but no deadlines are cached. Prompt rather than
+    // auto-scraping: opening the popup repeatedly used to restart the scrape
+    // every time, which read as the UI being permanently stuck loading.
+    showEmptyPrompt()
   }
 }
 

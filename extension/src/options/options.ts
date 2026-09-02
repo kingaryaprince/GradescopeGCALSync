@@ -201,7 +201,7 @@ el.save.addEventListener('click', () => {
       notifyGrades: el.notifyGrades.checked,
       notifyNewAssignments: el.notifyNew.checked,
       autoSync: el.auto.checked,
-      autoSyncHours: Math.min(168, Math.max(1, Number.parseInt(el.autoHours.value, 10) || 6)),
+      autoSyncHours: Math.min(168, Math.max(0.25, Number.parseFloat(el.autoHours.value) || 6)),
     })
     el.saved.textContent = 'Saved.'
     setTimeout(() => (el.saved.textContent = ''), 2000)
