@@ -8,7 +8,9 @@ import {
 } from './lib/calendar/gcal'
 import { fromWire, fail, ok, type Request, type Response, type ScrapeAssignmentsData, type ScrapeCoursesData } from './lib/messages'
 import {
+  loadAssignmentCache,
   loadCourseCache,
+  loadReport,
   saveAssignmentCache,
   loadSettings,
   saveCourseCache,
@@ -18,7 +20,7 @@ import {
 } from './lib/storage'
 import { buildSnapshot, diffForNotifications, fireNotices, registerNotificationClicks, type Snapshot } from './lib/notify'
 import { buildDesiredEvents, reconcile, shouldInclude } from './lib/sync'
-import type { CachedAssignment } from './lib/upcoming'
+import { badgeState, type CachedAssignment } from './lib/upcoming'
 import type { Assignment, Course, SyncReport } from './lib/types'
 
 const OFFSCREEN_PATH = 'offscreen.html'
@@ -140,6 +142,7 @@ async function refreshDeadlines(): Promise<{ count: number; warnings: string[] }
   const { entries, warnings } = await collectAssignments(selected)
   const cache = toCache(entries)
   await saveAssignmentCache(cache)
+  await updateBadge()
   return { count: cache.length, warnings }
 }
 
@@ -199,7 +202,7 @@ async function runSync(): Promise<SyncReport> {
     }
     await saveReport(report)
     await setGoogleConnected(true)
-    setBadge(stats.failed > 0 ? 'warn' : 'ok')
+    await updateBadge()
     return report
   } catch (err) {
     const report: SyncReport = {
@@ -210,19 +213,29 @@ async function runSync(): Promise<SyncReport> {
       warnings: [],
     }
     await saveReport(report)
-    setBadge('error')
+    await updateBadge()
     return report
   }
 }
 
-function setBadge(state: 'ok' | 'warn' | 'error'): void {
-  const cfg = {
-    ok: { text: '', color: '#1a7f37' },
-    warn: { text: '!', color: '#bf8700' },
-    error: { text: '!', color: '#cf222e' },
-  }[state]
-  void chrome.action.setBadgeText({ text: cfg.text })
-  void chrome.action.setBadgeBackgroundColor({ color: cfg.color })
+/**
+ * Badge shows outstanding work, except when the last sync failed -- a broken
+ * sync means the counts are stale, so surfacing the failure matters more.
+ */
+async function updateBadge(): Promise<void> {
+  const report = await loadReport()
+  if (report && !report.ok) {
+    void chrome.action.setBadgeText({ text: '!' })
+    void chrome.action.setBadgeBackgroundColor({ color: '#cf222e' })
+    void chrome.action.setTitle({ title: `Sync failed: ${report.error ?? 'unknown error'}` })
+    return
+  }
+
+  const { items } = await loadAssignmentCache()
+  const b = badgeState(items)
+  void chrome.action.setBadgeText({ text: b.text })
+  void chrome.action.setBadgeBackgroundColor({ color: b.color })
+  void chrome.action.setTitle({ title: `Gradescope Sync — ${b.title}` })
 }
 
 async function exportIcs(): Promise<{ ics: string; filename: string; count: number }> {
@@ -309,10 +322,15 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 chrome.runtime.onInstalled.addListener((details) => {
   void installAlarm()
+  void updateBadge()
   if (details.reason === 'install') void chrome.runtime.openOptionsPage()
 })
 
-chrome.runtime.onStartup.addListener(() => void installAlarm())
+chrome.runtime.onStartup.addListener(() => {
+  void installAlarm()
+  // Recompute on launch: yesterday's "due soon" may now be overdue.
+  void updateBadge()
+})
 
 registerNotificationClicks()
 

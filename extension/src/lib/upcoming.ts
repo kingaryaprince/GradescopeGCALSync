@@ -108,3 +108,57 @@ export function buildUpcoming(
 
   return { groups, hiddenCount: items.length - shown.length, overdueCount }
 }
+
+export interface BadgeState {
+  text: string
+  color: string
+  /** Tooltip for the toolbar icon. */
+  title: string
+}
+
+const RED = '#cf222e'
+const AMBER = '#bf8700'
+const GREEN = '#1a7f37'
+
+/**
+ * Toolbar badge summarising outstanding work.
+ *
+ * Overdue wins over due-soon, because a missed deadline is the more urgent
+ * signal. Submitted work never counts.
+ */
+export function badgeState(
+  cached: CachedAssignment[],
+  now: Date = new Date(),
+  soonHours = 48,
+): BadgeState {
+  const soonCutoff = now.getTime() + soonHours * 3_600_000
+  let overdue = 0
+  let soon = 0
+
+  for (const c of cached) {
+    if (c.submitted) continue
+    const t = new Date(c.dueIso).getTime()
+    if (Number.isNaN(t)) continue
+    if (t < now.getTime()) overdue++
+    else if (t <= soonCutoff) soon++
+  }
+
+  // The badge fits about four characters.
+  const fmt = (n: number) => (n > 99 ? '99+' : String(n))
+
+  if (overdue > 0) {
+    return {
+      text: fmt(overdue),
+      color: RED,
+      title: `${overdue} overdue assignment${overdue === 1 ? '' : 's'}`,
+    }
+  }
+  if (soon > 0) {
+    return {
+      text: fmt(soon),
+      color: AMBER,
+      title: `${soon} assignment${soon === 1 ? '' : 's'} due in the next ${soonHours} hours`,
+    }
+  }
+  return { text: '', color: GREEN, title: 'Nothing due soon' }
+}

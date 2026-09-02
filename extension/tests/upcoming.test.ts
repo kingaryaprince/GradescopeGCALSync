@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildUpcoming, type CachedAssignment } from '../src/lib/upcoming'
+import { badgeState, buildUpcoming, type CachedAssignment } from '../src/lib/upcoming'
 
 const NOW = new Date('2026-09-02T12:00:00')
 const iso = (s: string) => new Date(s).toISOString()
@@ -113,5 +113,69 @@ describe('buildUpcoming', () => {
   it('ignores unparseable dates and an empty cache', () => {
     expect(buildUpcoming([a({ dueIso: 'not a date' })], { now: NOW }).groups).toEqual([])
     expect(buildUpcoming([], { now: NOW })).toEqual({ groups: [], hiddenCount: 0, overdueCount: 0 })
+  })
+})
+
+describe('badgeState', () => {
+  const NOW2 = new Date('2026-09-02T12:00:00')
+
+  it('is empty when nothing is outstanding', () => {
+    const b = badgeState([a({ dueIso: iso('2026-09-20T16:00:00') })], NOW2)
+    expect(b.text).toBe('')
+    expect(b.title).toBe('Nothing due soon')
+  })
+
+  it('counts work due within the window in amber', () => {
+    const b = badgeState(
+      [
+        a({ dueIso: iso('2026-09-03T16:00:00'), key: 'x' }),
+        a({ dueIso: iso('2026-09-02T18:00:00'), key: 'y' }),
+      ],
+      NOW2,
+    )
+    expect(b.text).toBe('2')
+    expect(b.color).toBe('#bf8700')
+  })
+
+  // A missed deadline is the more urgent signal.
+  it('lets overdue take priority over due-soon', () => {
+    const b = badgeState(
+      [
+        a({ dueIso: iso('2026-08-30T16:00:00'), key: 'late' }),
+        a({ dueIso: iso('2026-09-03T16:00:00'), key: 'soon' }),
+      ],
+      NOW2,
+    )
+    expect(b.text).toBe('1')
+    expect(b.color).toBe('#cf222e')
+    expect(b.title).toContain('overdue')
+  })
+
+  it('never counts submitted work', () => {
+    const b = badgeState(
+      [
+        a({ dueIso: iso('2026-08-30T16:00:00'), key: 'a', submitted: true }),
+        a({ dueIso: iso('2026-09-03T16:00:00'), key: 'b', submitted: true }),
+      ],
+      NOW2,
+    )
+    expect(b.text).toBe('')
+  })
+
+  it('ignores work beyond the window', () => {
+    expect(badgeState([a({ dueIso: iso('2026-09-10T16:00:00') })], NOW2).text).toBe('')
+  })
+
+  it('singularises the tooltip', () => {
+    expect(badgeState([a({ dueIso: iso('2026-08-30T16:00:00') })], NOW2).title).toBe(
+      '1 overdue assignment',
+    )
+  })
+
+  it('caps a very large count', () => {
+    const many = Array.from({ length: 120 }, (_, i) =>
+      a({ dueIso: iso('2026-08-30T16:00:00'), key: `k${i}` }),
+    )
+    expect(badgeState(many, NOW2).text).toBe('99+')
   })
 })

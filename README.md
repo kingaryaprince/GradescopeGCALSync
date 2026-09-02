@@ -139,11 +139,8 @@ the fallback warning in Settings will say so.
 
 ## Publishing checklist
 
-- [ ] Set a real `oauth2.client_id` and a fixed `key` in the manifest
-- [ ] Verify selectors against a live Gradescope account
-- [ ] Publish `docs/privacy.md` via GitHub Pages (required for OAuth verification)
-- [ ] Submit the OAuth consent screen for verification (sensitive scopes; unverified apps are capped at 100 users)
-- [ ] `npm run zip` → upload to the Chrome Web Store
+See [PUBLISHING.md](PUBLISHING.md) for the full Web Store and OAuth-verification workflow,
+including ready-to-paste listing copy, scope justifications, and a demo-video script.
 
 ## License
 
