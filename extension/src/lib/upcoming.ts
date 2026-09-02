@@ -162,3 +162,35 @@ export function badgeState(
   }
   return { text: '', color: GREEN, title: 'Nothing due soon' }
 }
+
+/**
+ * Compact relative time: "in 25m", "in 4h", "in 3d", "2d ago".
+ *
+ * More useful than a clock time on a deadline list — "in 4h" tells you what to
+ * do now, "4:00 PM" makes you work it out.
+ */
+export function relativeTime(due: Date, now: Date = new Date()): string {
+  const ms = due.getTime() - now.getTime()
+  const past = ms < 0
+  const mins = Math.floor(Math.abs(ms) / 60_000)
+
+  let out: string
+  if (mins < 1) out = 'now'
+  else if (mins < 60) out = `${mins}m`
+  else if (mins < 60 * 24) out = `${Math.floor(mins / 60)}h`
+  else out = `${Math.floor(mins / (60 * 24))}d`
+
+  if (out === 'now') return 'now'
+  return past ? `${out} ago` : `in ${out}`
+}
+
+/** Urgency band used to colour a row. */
+export type Urgency = 'overdue' | 'soon' | 'today' | 'later'
+
+export function urgencyOf(due: Date, now: Date = new Date()): Urgency {
+  const ms = due.getTime() - now.getTime()
+  if (ms < 0) return 'overdue'
+  if (ms <= 6 * 3_600_000) return 'soon'
+  if (ms <= 24 * 3_600_000) return 'today'
+  return 'later'
+}

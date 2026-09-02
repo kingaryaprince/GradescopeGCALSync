@@ -123,6 +123,25 @@ UI instead of letting the user hit Google's opaque `bad client id: {0}`.
 Scopes: `calendar.app.created` (dedicated calendar, no access to others), `calendar.events`
 (user-chosen existing calendar), `calendar.calendarlist.readonly` (picker).
 
+## Styling
+
+`src/styles/tokens.css` holds the whole visual language and is linked by both the popup and the
+options page. Change design there, not in the per-surface stylesheets.
+
+The language is "soft tactile", adapted from a set of Uiverse.io components: generous radii,
+layered shadows (`--sh-1`/`--sh-2`), springy overshoot easing (`--spring`), a gradient accent
+(`--accent-grad`), and scale feedback on hover/press. Two rules:
+
+- **Red and amber mean urgency, never decoration.** Row colour comes from `urgencyOf()`.
+- **The deadline list is not a card.** It renders as page content so it outweighs the
+  surrounding widgets; making it a card flattens the hierarchy.
+
+Dark values are declared twice on purpose -- once under `prefers-color-scheme` for
+`data-theme="auto"`, once for an explicit `data-theme="dark"` -- so the theme control can
+override the OS. `lib/theme.ts` applies it before first paint to avoid a flash.
+
+`prefers-reduced-motion` collapses all animation; keep it that way.
+
 ## Known gaps
 
 **Verified against a live account (2026-09-01).** The full pipeline works end to end:

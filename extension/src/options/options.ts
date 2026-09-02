@@ -1,6 +1,7 @@
 import type { CalendarSummary } from '../lib/calendar/gcal'
 import type { Request, Response } from '../lib/messages'
 import { OAUTH_SETUP_HINT, isOAuthConfigured } from '../lib/oauth'
+import { applyTheme, initTheme } from '../lib/theme'
 import { isGoogleConnected, loadReport, loadSettings, saveSettings } from '../lib/storage'
 import type { SyncReport, SyncSettings } from '../lib/types'
 
@@ -28,6 +29,7 @@ const el = {
   report: $<HTMLPreElement>('report'),
   save: $<HTMLButtonElement>('save'),
   saved: $<HTMLSpanElement>('saved'),
+  theme: $<HTMLDivElement>('theme'),
 }
 
 function send<T>(msg: Request): Promise<T> {
@@ -55,7 +57,19 @@ const parseMinutes = (v: string): number[] =>
     .map((s) => Number.parseInt(s, 10))
     .filter((n) => Number.isFinite(n) && n >= 0)
 
+/** Moves the sliding thumb under the active segment. */
+function paintTheme(active: SyncSettings['theme']): void {
+  const buttons = [...el.theme.querySelectorAll<HTMLButtonElement>('button')]
+  const thumb = el.theme.querySelector<HTMLElement>('.thumb')!
+  const idx = Math.max(0, buttons.findIndex((b) => b.dataset['themeValue'] === active))
+  const target = buttons[idx]!
+  for (const b of buttons) b.setAttribute('aria-pressed', String(b === target))
+  thumb.style.width = `${target.offsetWidth}px`
+  thumb.style.transform = `translateX(${target.offsetLeft - 3}px)`
+}
+
 function fillForm(s: SyncSettings): void {
+  paintTheme(s.theme)
   el.duration.value = String(s.durationMinutes)
   el.reminders.value = s.reminderMinutes.join(', ')
   el.prefix.checked = s.prefixCourse
@@ -208,7 +222,18 @@ chrome.storage.onChanged.addListener((changes, area) => {
 // page was in the background.
 window.addEventListener('focus', () => void (async () => renderReport(await loadReport()))())
 
+el.theme.addEventListener('click', (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-theme-value]')
+  if (!btn) return
+  const value = btn.dataset['themeValue'] as SyncSettings['theme']
+  // Applied immediately, not on Save, so the choice is previewable.
+  applyTheme(value)
+  paintTheme(value)
+  void saveSettings({ theme: value })
+})
+
 void (async () => {
+  await initTheme()
   fillForm(await loadSettings())
   renderReport(await loadReport())
   await refreshConnection()

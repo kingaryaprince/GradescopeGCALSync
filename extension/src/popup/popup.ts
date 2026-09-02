@@ -1,8 +1,9 @@
 import type { Request, Response, SyncNowData } from '../lib/messages'
 import { isOAuthConfigured } from '../lib/oauth'
+import { initTheme } from '../lib/theme'
 import { groupCoursesByTerm, type CourseGroup } from '../lib/terms'
 import { isGoogleConnected, loadAssignmentCache, loadCourseCache, loadReport, loadSettings, saveSettings } from '../lib/storage'
-import { buildUpcoming, type CachedAssignment } from '../lib/upcoming'
+import { buildUpcoming, relativeTime, urgencyOf, type CachedAssignment } from '../lib/upcoming'
 import type { Course, SyncReport } from '../lib/types'
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T
@@ -77,9 +78,9 @@ let hideSubmitted = false
 const timeOf = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
 function upcomingRow(item: ReturnType<typeof buildUpcoming>['groups'][number]['items'][number]): HTMLElement {
-  // Anchors when we have a link, so the row is genuinely clickable.
+  // Anchor when we have a link, so the row is genuinely clickable.
   const row = document.createElement(item.url ? 'a' : 'div')
-  row.className = `up-row${item.submitted ? ' done' : ''}`
+  row.className = `up-row u-${urgencyOf(item.due)}${item.submitted ? ' done' : ''}`
   if (item.url && row instanceof HTMLAnchorElement) {
     row.href = item.url
     row.target = '_blank'
@@ -96,11 +97,18 @@ function upcomingRow(item: ReturnType<typeof buildUpcoming>['groups'][number]['i
   course.textContent = item.course
   main.append(title, course)
 
-  const time = document.createElement('span')
-  time.className = 'up-time'
-  time.textContent = timeOf(item.due)
+  const when = document.createElement('span')
+  when.className = 'up-when'
+  const rel = document.createElement('span')
+  rel.className = 'up-rel'
+  // "in 4h" answers the actual question; the clock time is the detail.
+  rel.textContent = relativeTime(item.due)
+  const abs = document.createElement('span')
+  abs.className = 'up-abs'
+  abs.textContent = timeOf(item.due)
+  when.append(rel, abs)
 
-  row.append(main, time)
+  row.append(main, when)
   if (item.submitted) {
     const check = document.createElement('span')
     check.className = 'up-check'
@@ -264,7 +272,14 @@ function busy(on: boolean, label?: string): void {
   for (const b of [els.sync, els.ics, els.refresh]) b.disabled = on
   // Sync stays unavailable without OAuth, regardless of busy state.
   if (!on && !isOAuthConfigured()) els.sync.disabled = true
-  if (on && label) els.status.innerHTML = `<span class="spin">↻</span> ${label}`
+  if (on && label) {
+    els.status.replaceChildren()
+    const loader = document.createElement('span')
+    loader.className = 'loader'
+    for (let i = 0; i < 4; i++) loader.append(document.createElement('i'))
+    els.status.append(loader, document.createTextNode(` ${label}`))
+    els.status.className = 'status muted'
+  }
 }
 
 async function init(): Promise<void> {
@@ -392,4 +407,4 @@ els.ics.addEventListener('click', () => {
   })()
 })
 
-void init()
+void initTheme().then(init)

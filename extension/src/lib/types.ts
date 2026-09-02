@@ -82,6 +82,8 @@ export interface SyncSettings {
    * turned in last week is the fastest way to train you to ignore reminders.
    */
   skipSubmitted: boolean
+  /** 'auto' follows the OS; the others override it. */
+  theme: 'auto' | 'light' | 'dark'
 }
 
 export const DEFAULT_SETTINGS: SyncSettings = {
@@ -98,6 +100,7 @@ export const DEFAULT_SETTINGS: SyncSettings = {
   notifyGrades: false,
   notifyNewAssignments: false,
   skipSubmitted: false,
+  theme: 'auto',
 }
 
 export interface SyncStats {

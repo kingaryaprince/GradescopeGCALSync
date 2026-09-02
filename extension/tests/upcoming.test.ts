@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { badgeState, buildUpcoming, type CachedAssignment } from '../src/lib/upcoming'
+import {
+  badgeState,
+  buildUpcoming,
+  relativeTime,
+  urgencyOf,
+  type CachedAssignment,
+} from '../src/lib/upcoming'
 
 const NOW = new Date('2026-09-02T12:00:00')
 const iso = (s: string) => new Date(s).toISOString()
@@ -177,5 +183,39 @@ describe('badgeState', () => {
       a({ dueIso: iso('2026-08-30T16:00:00'), key: `k${i}` }),
     )
     expect(badgeState(many, NOW2).text).toBe('99+')
+  })
+})
+
+describe('relativeTime', () => {
+  const n = new Date('2026-09-02T12:00:00')
+
+  it('formats minutes, hours and days ahead', () => {
+    expect(relativeTime(new Date('2026-09-02T12:25:00'), n)).toBe('in 25m')
+    expect(relativeTime(new Date('2026-09-02T16:00:00'), n)).toBe('in 4h')
+    expect(relativeTime(new Date('2026-09-05T12:00:00'), n)).toBe('in 3d')
+  })
+
+  it('formats the past', () => {
+    expect(relativeTime(new Date('2026-08-31T12:00:00'), n)).toBe('2d ago')
+    expect(relativeTime(new Date('2026-09-02T11:30:00'), n)).toBe('30m ago')
+  })
+
+  it('collapses the current minute to "now"', () => {
+    expect(relativeTime(new Date('2026-09-02T12:00:30'), n)).toBe('now')
+  })
+
+  it('rounds down rather than up', () => {
+    expect(relativeTime(new Date('2026-09-02T13:59:00'), n)).toBe('in 1h')
+  })
+})
+
+describe('urgencyOf', () => {
+  const n = new Date('2026-09-02T12:00:00')
+
+  it('bands by time remaining', () => {
+    expect(urgencyOf(new Date('2026-09-02T11:00:00'), n)).toBe('overdue')
+    expect(urgencyOf(new Date('2026-09-02T15:00:00'), n)).toBe('soon')
+    expect(urgencyOf(new Date('2026-09-03T10:00:00'), n)).toBe('today')
+    expect(urgencyOf(new Date('2026-09-10T10:00:00'), n)).toBe('later')
   })
 })

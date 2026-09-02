@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <title>Gradescope Calendar Sync — Settings</title>
+    <link rel="stylesheet" href="../styles/tokens.css" />
     <link rel="stylesheet" href="../popup/popup.css" />
     <link rel="stylesheet" href="./options.css" />
   </head>
@@ -36,6 +37,20 @@
           A separate calendar keeps deadlines out of your main one, and you can hide or delete
           them all at once.
         </p>
+      </section>
+
+      <section class="card">
+        <p class="card-title">Appearance</p>
+        <div class="field">
+          <span>Theme</span>
+          <div class="segmented" id="theme">
+            <span class="thumb"></span>
+            <button type="button" data-theme-value="auto">Auto</button>
+            <button type="button" data-theme-value="light">Light</button>
+            <button type="button" data-theme-value="dark">Dark</button>
+          </div>
+        </div>
+        <p class="hint">Auto follows your system setting.</p>
       </section>
 
       <section class="card">
