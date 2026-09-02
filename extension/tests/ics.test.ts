@@ -15,6 +15,7 @@ const mk = (over: Partial<Assignment> = {}): Assignment => ({
   dueRaw: 'Oct 04 at 4:00PM',
   url: 'https://www.gradescope.com/courses/100/assignments/501',
   dueIsExact: false,
+  submitted: false,
   ...over,
 })
 

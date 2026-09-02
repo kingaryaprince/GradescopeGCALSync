@@ -70,6 +70,29 @@
           <input id="remove-stale" type="checkbox" />
           Remove events when an assignment disappears from Gradescope
         </label>
+        <label class="check">
+          <input id="skip-submitted" type="checkbox" />
+          Skip assignments you have already submitted
+        </label>
+        <p class="hint">
+          Keeps reminders off work you have already turned in. Enabling this also removes
+          existing events once you submit.
+        </p>
+      </section>
+
+      <section class="card">
+        <p class="card-title">Notifications</p>
+        <label class="check">
+          <input id="notify-grades" type="checkbox" /> When a grade is posted or changes
+        </label>
+        <label class="check">
+          <input id="notify-new" type="checkbox" /> When a new assignment is published
+        </label>
+        <p class="hint">
+          Both are off by default because Gradescope already emails you about these. Turn them
+          on if you would rather get a desktop notification, or have those emails muted. Grade
+          notifications also catch score <em>changes</em>, such as a regrade coming through.
+        </p>
       </section>
 
       <section class="card">

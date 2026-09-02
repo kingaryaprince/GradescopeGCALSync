@@ -15,11 +15,13 @@ import {
   saveSettings,
   setGoogleConnected,
 } from './lib/storage'
+import { buildSnapshot, diffForNotifications, fireNotices, registerNotificationClicks, type Snapshot } from './lib/notify'
 import { buildDesiredEvents, reconcile, shouldInclude } from './lib/sync'
 import type { Assignment, Course, SyncReport } from './lib/types'
 
 const OFFSCREEN_PATH = 'offscreen.html'
 const ALARM = 'gradescope-autosync'
+const SNAPSHOT_KEY = 'gradeSnapshot'
 
 // ------------------------- offscreen plumbing -------------------------
 
@@ -125,6 +127,25 @@ async function runSync(): Promise<SyncReport> {
 
     const { entries, scrapedOk, warnings } = await collectAssignments(selected)
     const desired = buildDesiredEvents(entries, settings)
+
+    // Diff before saving the new snapshot, and only over courses we actually
+    // read, so a failed fetch cannot look like a batch of new assignments.
+    const readEntries = entries.filter((e) => scrapedOk.has(e.course.id))
+    if (settings.notifyGrades || settings.notifyNewAssignments) {
+      const stored = await chrome.storage.local.get(SNAPSHOT_KEY)
+      const notices = diffForNotifications(
+        (stored[SNAPSHOT_KEY] as Snapshot | undefined) ?? null,
+        readEntries,
+        {
+          notifyGrades: settings.notifyGrades,
+          notifyNewAssignments: settings.notifyNewAssignments,
+        },
+      )
+      if (notices.length > 0) await fireNotices(notices)
+    }
+    await chrome.storage.local.set({
+      [SNAPSHOT_KEY]: buildSnapshot(readEntries.map((e) => e.assignment)),
+    })
 
     // Safe to prune: courses we read successfully, plus courses the user turned
     // off (so their leftover events get cleaned up).
@@ -256,6 +277,8 @@ chrome.runtime.onInstalled.addListener((details) => {
 })
 
 chrome.runtime.onStartup.addListener(() => void installAlarm())
+
+registerNotificationClicks()
 
 // Keep the alarm in step with the user's schedule preference.
 chrome.storage.onChanged.addListener((changes, area) => {

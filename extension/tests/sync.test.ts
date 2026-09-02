@@ -42,6 +42,7 @@ const asg = (over: Partial<Assignment> = {}): Assignment => ({
   due: new Date('2025-10-04T23:00:00Z'),
   dueRaw: 'Oct 04 at 4:00PM',
   dueIsExact: false,
+  submitted: false,
   ...over,
 })
 const settings = (over: Partial<SyncSettings> = {}): SyncSettings => ({ ...DEFAULT_SETTINGS, ...over })

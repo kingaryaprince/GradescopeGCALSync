@@ -136,7 +136,9 @@ Still unverified, in rough priority order:
   structural fallback is carrying it, the semantic selectors in `parse.ts` are wrong and the
   late-due disambiguation is weaker (it falls back to "earlier of two dates wins"). Check
   Settings → Last sync for a "read using the fallback parser" warning.
-- **The `.submissionStatus` cell shape**, which the Tier 1 roadmap features depend on.
+- **The `.submissionStatus` cell shape.** `readSubmission()` now parses it (score, "Submitted",
+  "No Submission") with a header-mapped fallback, but only against fixtures. Grade
+  notifications and `skipSubmitted` both depend on it, so confirm before trusting them.
 - **Late-due rows**, and rows with no due date, on real HTML.
 - Whether rows expose ISO timestamps in attributes. If they do, the whole year-inference path
   in `dates.ts` can be deleted.
@@ -171,16 +173,13 @@ Each assignment row already contains **submission status** and **score** (the
 `.submissionStatus` cell — "Submitted", "No Submission", "18.0 / 20.0"). `parse.ts` reads the
 row but discards both. Two features fall straight out of capturing them:
 
-- [ ] **Submission-aware reminders.** Skip or visually mark assignments already submitted.
-      Today the extension will remind you 24h before a deadline for work you turned in a week
-      ago, which trains people to ignore the reminders. Cheapest real quality win.
-- [ ] **Grade-release notifications.** Diff scores between syncs and fire a
-      `chrome.notifications` alert when one appears or changes. Students poll Gradescope
-      compulsively for this; the background sync already runs every 6h, so the data is
-      effectively free. Plausibly a bigger draw than calendar sync itself.
-
-Both require adding `status` / `score` to `Assignment` plus a small
-`chrome.storage.local` snapshot to diff against. Neither changes the sync architecture.
+- [x] **Submission-aware reminders** (`skipSubmitted`). Keeps reminders off work already
+      turned in. Off by default because it also removes the event on submit.
+- [x] **Grade / new-assignment notifications** (`lib/notify.ts`). Diffs a stored fingerprint
+      snapshot between syncs. **Both default off: Gradescope already emails on grade release
+      and assignment publish**, so the value is desktop delivery for people who mute those,
+      plus catching score *changes* (regrades), which Gradescope's email does not distinguish.
+      First sync is deliberately silent, or it would fire once per assignment.
 
 ### Product framing
 

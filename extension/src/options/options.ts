@@ -20,6 +20,9 @@ const el = {
   allow: $<HTMLInputElement>('allow'),
   deny: $<HTMLInputElement>('deny'),
   removeStale: $<HTMLInputElement>('remove-stale'),
+  skipSubmitted: $<HTMLInputElement>('skip-submitted'),
+  notifyGrades: $<HTMLInputElement>('notify-grades'),
+  notifyNew: $<HTMLInputElement>('notify-new'),
   auto: $<HTMLInputElement>('auto'),
   autoHours: $<HTMLInputElement>('auto-hours'),
   report: $<HTMLPreElement>('report'),
@@ -59,6 +62,9 @@ function fillForm(s: SyncSettings): void {
   el.allow.value = s.allowKeywords.join(', ')
   el.deny.value = s.denyKeywords.join(', ')
   el.removeStale.checked = s.removeStale
+  el.skipSubmitted.checked = s.skipSubmitted
+  el.notifyGrades.checked = s.notifyGrades
+  el.notifyNew.checked = s.notifyNewAssignments
   el.auto.checked = s.autoSync
   el.autoHours.value = String(s.autoSyncHours)
 }
@@ -176,6 +182,9 @@ el.save.addEventListener('click', () => {
       allowKeywords: parseList(el.allow.value),
       denyKeywords: parseList(el.deny.value),
       removeStale: el.removeStale.checked,
+      skipSubmitted: el.skipSubmitted.checked,
+      notifyGrades: el.notifyGrades.checked,
+      notifyNewAssignments: el.notifyNew.checked,
       autoSync: el.auto.checked,
       autoSyncHours: Math.min(168, Math.max(1, Number.parseInt(el.autoHours.value, 10) || 6)),
     })

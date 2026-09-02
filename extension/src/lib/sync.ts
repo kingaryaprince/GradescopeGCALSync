@@ -19,6 +19,9 @@ export function buildDesiredEvents(
   for (const { assignment, course } of entries) {
     if (!assignment.due) continue
     if (!shouldInclude(assignment.title, settings)) continue
+    // Dropping submitted work here also removes its existing event on the next
+    // reconcile, which is the intent: the deadline no longer concerns you.
+    if (settings.skipSubmitted && assignment.submitted) continue
 
     const description = [
       `Gradescope due: ${assignment.dueRaw}`,

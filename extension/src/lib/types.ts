@@ -31,6 +31,12 @@ export interface Assignment {
   url?: string
   /** True when the due date came from a machine-readable attribute, not text. */
   dueIsExact: boolean
+  /** Raw status text, e.g. "Submitted", "No Submission". */
+  status?: string
+  /** Parsed score when Gradescope shows one. */
+  score?: { earned: number; total: number }
+  /** True when Gradescope shows this as submitted or graded. */
+  submitted: boolean
 }
 
 /** Which parsing strategy produced a result, surfaced in diagnostics. */
@@ -63,6 +69,19 @@ export interface SyncSettings {
   /** Run a background sync on a timer. */
   autoSync: boolean
   autoSyncHours: number
+  /**
+   * Notify when a score appears or changes. Off by default: Gradescope already
+   * emails on grade release, so this is opt-in for people who prefer desktop
+   * notifications or have those emails muted.
+   */
+  notifyGrades: boolean
+  /** Notify when a new assignment shows up. Gradescope also emails on publish. */
+  notifyNewAssignments: boolean
+  /**
+   * Leave submitted work off the calendar. Reminding you about something you
+   * turned in last week is the fastest way to train you to ignore reminders.
+   */
+  skipSubmitted: boolean
 }
 
 export const DEFAULT_SETTINGS: SyncSettings = {
@@ -76,6 +95,9 @@ export const DEFAULT_SETTINGS: SyncSettings = {
   allowKeywords: [],
   autoSync: true,
   autoSyncHours: 6,
+  notifyGrades: false,
+  notifyNewAssignments: false,
+  skipSubmitted: false,
 }
 
 export interface SyncStats {

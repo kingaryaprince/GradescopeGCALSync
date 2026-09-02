@@ -48,6 +48,34 @@ function exactDateFrom(el: Element | null): string | null {
   return t?.getAttribute('datetime') ?? null
 }
 
+
+const SCORE_RE = /(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/
+
+export interface SubmissionInfo {
+  status?: string
+  score?: { earned: number; total: number }
+  submitted: boolean
+}
+
+/**
+ * Reads the submission status cell, which Gradescope renders as free text
+ * ("Submitted", "No Submission") or as a score ("18.0 / 20.0").
+ */
+export function readSubmission(cell: Element | undefined): SubmissionInfo {
+  const raw = text(cell)
+  if (!raw) return { submitted: false }
+
+  const m = SCORE_RE.exec(raw)
+  const score = m ? { earned: Number.parseFloat(m[1]!), total: Number.parseFloat(m[2]!) } : undefined
+
+  // "No Submission" contains "Submission", so the negative must be tested first.
+  const submitted = /no submission|not submitted/i.test(raw)
+    ? false
+    : score !== undefined || /submitted|graded|complete/i.test(raw)
+
+  return { ...(raw ? { status: raw } : {}), ...(score ? { score } : {}), submitted }
+}
+
 // ------------------------------- courses -------------------------------
 
 /**
@@ -126,6 +154,7 @@ export function parseCourses(doc: Document): ParseResult<Course> {
 interface ColumnMap {
   due?: number
   name?: number
+  status?: number
 }
 
 /** Reads the table header so we select the Due column by meaning, not position. */
@@ -139,6 +168,7 @@ function columnMap(table: Element): ColumnMap {
     // "Late Due" must not win the Due slot.
     if (map.due === undefined && /\bdue\b/.test(t) && !t.includes('late')) map.due = i
     if (map.name === undefined && /(name|assignment)/.test(t)) map.name = i
+    if (map.status === undefined && /(status|score|grade)/.test(t)) map.status = i
   })
   return map
 }
@@ -263,6 +293,11 @@ export function parseAssignments(
         continue
       }
 
+      const statusCell =
+        row.querySelector('.submissionStatus') ??
+        (cols.status !== undefined ? cells[cols.status] : undefined)
+      const submission = readSubmission(statusCell ?? undefined)
+
       const lateRaw = lateTexts[0]
       items.push({
         key: assignmentKey(courseId, assignmentId, title),
@@ -274,6 +309,7 @@ export function parseAssignments(
         ...(lateRaw ? { lateDue: parseDueDate(lateRaw, opts) } : {}),
         ...(href ? { url: new URL(href, 'https://www.gradescope.com').toString() } : {}),
         dueIsExact: /\d{4}-\d{2}-\d{2}/.test(dueRaw),
+        ...submission,
       })
     }
   }
