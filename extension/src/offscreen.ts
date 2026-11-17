@@ -17,7 +17,10 @@ chrome.runtime.onMessage.addListener(
         switch (msg.type) {
           case 'SCRAPE_COURSES': {
             const r = await fetchCourses()
-            sendResponse(ok({ courses: r.items, strategy: r.strategy, warnings: r.warnings }))
+            sendResponse(ok({
+              courses: r.items, strategy: r.strategy, warnings: r.warnings,
+              ...(r.recovered ? { recovered: true } : {}),
+            }))
             break
           }
           case 'SCRAPE_ASSIGNMENTS': {

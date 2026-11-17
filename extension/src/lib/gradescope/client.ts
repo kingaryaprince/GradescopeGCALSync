@@ -45,19 +45,40 @@ export const browserFetcher: HtmlFetcher = async (url) => {
 }
 
 /** Gradescope answers an unauthenticated request with the login page. */
-function assertLoggedIn(page: FetchedPage): void {
-  if (page.status === 401 || page.status === 403) throw new NotLoggedInError()
-  if (/\/login(\?|$)/.test(page.finalUrl)) throw new NotLoggedInError()
-  if (page.doc.querySelector('input#session_password, form[action*="/login"]')) {
-    throw new NotLoggedInError()
-  }
+export function isSignedOut(page: FetchedPage): boolean {
+  if (page.status === 401 || page.status === 403) return true
+  if (/\/login(\?|$)/.test(page.finalUrl)) return true
+  return page.doc.querySelector('input#session_password, form[action*="/login"]') !== null
 }
 
-export async function fetchCourses(fetcher: HtmlFetcher = browserFetcher): Promise<ParseResult<Course>> {
-  const page = await fetcher(DASHBOARD_URL)
+function assertLoggedIn(page: FetchedPage): void {
+  if (isSignedOut(page)) throw new NotLoggedInError()
+}
+
+/**
+ * Fetches the dashboard, and when it answers "signed out", loads the Gradescope
+ * home page once and tries again.
+ *
+ * Why: after signing in, Gradescope also sets a long-lived `remember_me` cookie
+ * (seen 2026-11-16 with an expiry 13 months out, SameSite=None, so it rides
+ * along on our requests too). The short-lived session cookie dies with the
+ * browser; whether a plain request to "/" uses remember_me to start a fresh
+ * session is NOT verified yet. `recovered` reports when it worked, so the sync
+ * report shows whether this path ever fires.
+ */
+export async function fetchCourses(
+  fetcher: HtmlFetcher = browserFetcher,
+): Promise<ParseResult<Course> & { recovered?: boolean }> {
+  let page = await fetcher(DASHBOARD_URL)
+  let recovered = false
+  if (isSignedOut(page)) {
+    await fetcher(`${GRADESCOPE_ORIGIN}/`)
+    page = await fetcher(DASHBOARD_URL)
+    recovered = !isSignedOut(page)
+  }
   assertLoggedIn(page)
   if (page.status >= 500) throw new Error(`Gradescope returned ${page.status}. Try again shortly.`)
-  return parseCourses(page.doc)
+  return { ...parseCourses(page.doc), ...(recovered ? { recovered } : {}) }
 }
 
 export async function fetchAssignments(

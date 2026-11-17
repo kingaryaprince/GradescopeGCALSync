@@ -14,7 +14,7 @@ import {
   undismissAssignment,
 } from '../lib/storage'
 import { courseColor } from '../lib/colors'
-import { buildUpcoming, relativeTime, urgencyOf, type CachedAssignment } from '../lib/upcoming'
+import { asOfLabel, buildUpcoming, relativeTime, urgencyOf, type CachedAssignment } from '../lib/upcoming'
 import type { Course, SyncReport } from '../lib/types'
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T
@@ -32,6 +32,7 @@ const els = {
   ics: $<HTMLButtonElement>('ics'),
   status: $<HTMLElement>('status'),
   upcoming: $<HTMLDivElement>('upcoming'),
+  asof: $<HTMLParagraphElement>('asof'),
   toggleSubmitted: $<HTMLButtonElement>('toggle-submitted'),
   toggleOverdue: $<HTMLButtonElement>('toggle-overdue'),
   toggleCourses: $<HTMLButtonElement>('toggle-courses'),
@@ -85,13 +86,38 @@ function hideBanner(): void {
   els.banner.hidden = true
 }
 
+const SIGN_IN_LINK =
+  '<a href="https://www.gradescope.com/login" target="_blank" rel="noreferrer">Sign in to Gradescope</a>'
+
+/**
+ * Signed out, with the likely cause. A present remember_me cookie means
+ * Gradescope still knows this browser; a missing one usually means Chrome is
+ * deleting cookies, which signing in again will not fix for long.
+ */
+function signedOutBanner(report: SyncReport | null): void {
+  const tail = ' Docket syncs by itself as soon as a Gradescope page loads.'
+  if (report?.remembered && !report.remembered.present) {
+    showBanner(
+      `${SIGN_IN_LINK}.${tail} Gradescope's remembered sign-in is missing too, which usually means Chrome ` +
+        'deletes cookies when it closes. To stop that, open <b>chrome://settings/content/siteData</b> and add ' +
+        '<b>[*.]gradescope.com</b> under “Allowed to save data on your device”.',
+      'err',
+    )
+  } else {
+    showBanner(`${SIGN_IN_LINK}.${tail}`, 'err')
+  }
+}
+
+function renderAsOf(at: number | null): void {
+  const text = asOfLabel(at)
+  els.asof.textContent = text
+  els.asof.hidden = text === ''
+}
+
 /** Not being signed in to Gradescope is the most common failure; make it actionable. */
 function explain(err: Error): void {
   if (err.name === 'NotLoggedInError') {
-    showBanner(
-      'You are not signed in to Gradescope. <a href="https://www.gradescope.com/login" target="_blank" rel="noreferrer">Sign in</a>, then sync again.',
-      'err',
-    )
+    void loadReport().then(signedOutBanner)
   } else if (err.name === 'AuthError') {
     showBanner('Google Calendar access is needed. Use “Connect Google Calendar” above.', 'err')
     els.connect.hidden = false
@@ -373,7 +399,10 @@ function describe(report: SyncReport): string {
     report.deleted ? `${report.deleted} removed` : '',
     report.failed ? `${report.failed} failed` : '',
   ].filter(Boolean)
-  const when = new Date(report.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  const at = new Date(report.at)
+  const when = at.toDateString() === new Date().toDateString()
+    ? at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : at.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })
   return bits.length > 0 ? `${bits.join(', ')} · ${when}` : `Already up to date · ${when}`
 }
 
@@ -434,7 +463,11 @@ async function init(): Promise<void> {
     showBanner('Calendar sync is not set up in this build. <b>Download .ics</b> works now.', 'warn')
   }
   renderCourses(cached, settings.selectedCourseIds)
+  renderAsOf(deadlines.at)
   if (report) setStatus(describe(report), report.ok ? 'ok' : 'err')
+  // A background sync failed while the popup was closed: say so up front,
+  // next to the (still shown) cached list.
+  if (report && !report.ok && report.signedOut) signedOutBanner(report)
 
   // Cached list renders instantly; only fetch when we have nothing at all.
   if (cached.length === 0) {
@@ -456,7 +489,7 @@ async function refreshCourses(quiet = false): Promise<void> {
 
     // Deadlines too, so the dashboard fills in without needing Google.
     const { count } = await send<{ count: number }>({ type: 'REFRESH_DEADLINES' })
-    cachedDeadlines = (await loadAssignmentCache()).items
+    { const c = await loadAssignmentCache(); cachedDeadlines = c.items; renderAsOf(c.at) }
     renderUpcoming()
 
     hideBanner()
@@ -474,7 +507,7 @@ async function refreshDeadlinesOnly(): Promise<void> {
   busy(true, 'Loading deadlines\u2026')
   try {
     await send({ type: 'REFRESH_DEADLINES' })
-    cachedDeadlines = (await loadAssignmentCache()).items
+    { const c = await loadAssignmentCache(); cachedDeadlines = c.items; renderAsOf(c.at) }
     renderUpcoming()
     setStatus('')
   } catch (err) {
@@ -544,7 +577,7 @@ els.sync.addEventListener('click', () => {
     hideBanner()
     try {
       const { report } = await send<SyncNowData>({ type: 'SYNC_NOW' })
-      cachedDeadlines = (await loadAssignmentCache()).items
+      { const c = await loadAssignmentCache(); cachedDeadlines = c.items; renderAsOf(c.at) }
       renderUpcoming()
       setStatus(describe(report), report.ok ? 'ok' : 'err')
       if (!report.ok && report.error) {

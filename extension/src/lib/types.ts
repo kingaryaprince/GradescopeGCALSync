@@ -131,4 +131,16 @@ export interface SyncReport extends SyncStats {
   ok: boolean
   error?: string
   warnings: string[]
+  /** True when the run failed because Gradescope had signed this browser out. */
+  signedOut?: boolean
+  /** When the last successful run finished. Kept across failures so it is never lost. */
+  lastOkAt?: number
+  /**
+   * Gradescope's long-lived `remember_me` cookie, checked when a run finds the
+   * browser signed out. Present means Gradescope still knows this browser;
+   * absent usually means Chrome deleted cookies (for example on close).
+   */
+  remembered?: { present: boolean; expiresAt?: number }
+  /** A signed-out first fetch was retried after loading the Gradescope home page, and worked. */
+  recovered?: boolean
 }

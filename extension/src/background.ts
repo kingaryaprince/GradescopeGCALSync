@@ -18,9 +18,18 @@ import {
   saveReport,
   saveSettings,
   setGoogleConnected,
+  isGoogleConnected,
 } from './lib/storage'
 import { buildSnapshot, diffForNotifications, fireNotices, registerNotificationClicks, type Snapshot } from './lib/notify'
-import { buildDesiredEvents, reconcile, shouldInclude } from './lib/sync'
+import {
+  buildDesiredEvents,
+  carryForward,
+  everyCourseSignedOut,
+  mergeSnapshot,
+  reconcile,
+  shouldInclude,
+  shouldResyncAfterSignIn,
+} from './lib/sync'
 import { groupCoursesByTerm } from './lib/terms'
 import { badgeState, type CachedAssignment } from './lib/upcoming'
 import type { Assignment, Course, SyncReport } from './lib/types'
@@ -72,9 +81,13 @@ async function askOffscreen<T>(msg: Request): Promise<T> {
 
 // ---------------------------- course list ----------------------------
 
+/** Set by the last refreshCourses: its first fetch was signed out and the retry worked. */
+let lastRecovered = false
+
 async function refreshCourses(): Promise<Course[]> {
   const hadCache = (await loadCourseCache()).length > 0
   const data = await askOffscreen<ScrapeCoursesData>({ type: 'SCRAPE_COURSES' })
+  lastRecovered = data.recovered === true
   await saveCourseCache(data.courses)
 
   // First successful load: opt the user into current and upcoming terms only.
@@ -97,10 +110,12 @@ async function collectAssignments(courses: Course[]): Promise<{
   entries: Array<{ assignment: Assignment; course: Course }>
   scrapedOk: Set<string>
   warnings: string[]
+  signedOut: number
 }> {
   const entries: Array<{ assignment: Assignment; course: Course }> = []
   const scrapedOk = new Set<string>()
   const warnings: string[] = []
+  let signedOut = 0
 
   for (const course of courses) {
     try {
@@ -120,10 +135,48 @@ async function collectAssignments(courses: Course[]): Promise<{
     } catch (err) {
       // Deliberately not added to scrapedOk, so reconcile will not treat this
       // course's existing events as stale and delete them.
+      if (err instanceof Error && err.name === 'NotLoggedInError') signedOut++
       warnings.push(`${course.shortName}: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
-  return { entries, scrapedOk, warnings }
+  return { entries, scrapedOk, warnings, signedOut }
+}
+
+function signedOutError(): Error {
+  const err = new Error('Gradescope signed this browser out. Sign in to Gradescope; Docket syncs again by itself once you do.')
+  err.name = 'NotLoggedInError'
+  return err
+}
+
+/**
+ * The popup cache for this run. Courses that failed keep their previous rows
+ * (see carryForward), and in that case the "as of" time is left where it was:
+ * stamping now on partly old data would claim more freshness than there is.
+ */
+async function saveRunCache(
+  entries: Array<{ assignment: Assignment; course: Course }>,
+  selected: Course[],
+  scrapedOk: Set<string>,
+): Promise<number> {
+  const previous = await loadAssignmentCache()
+  const items = carryForward(toCache(entries), previous.items, {
+    selectedIds: selected.map((c) => c.id),
+    readIds: scrapedOk,
+  })
+  const complete = selected.every((c) => scrapedOk.has(c.id))
+  await saveAssignmentCache(items, complete || previous.at === null ? Date.now() : previous.at)
+  return items.length
+}
+
+/** Gradescope's long-lived sign-in cookie, for the report. Never reads its value out. */
+async function rememberedSignIn(): Promise<{ present: boolean; expiresAt?: number } | undefined> {
+  try {
+    const c = await chrome.cookies.get({ url: 'https://www.gradescope.com/', name: 'remember_me' })
+    if (!c) return { present: false }
+    return { present: true, ...(c.expirationDate ? { expiresAt: Math.round(c.expirationDate * 1000) } : {}) }
+  } catch {
+    return undefined                       // cookies permission missing in an old build
+  }
 }
 
 /** Flattens scraped assignments into the shape the popup dashboard renders. */
@@ -149,17 +202,19 @@ async function refreshDeadlines(): Promise<{ count: number; warnings: string[] }
   const settings = await loadSettings()
   const all = await refreshCourses()
   const selected = all.filter((c) => settings.selectedCourseIds.includes(c.id))
-  const { entries, warnings } = await collectAssignments(selected)
-  const cache = toCache(entries)
-  await saveAssignmentCache(cache)
+  const { entries, scrapedOk, warnings, signedOut } = await collectAssignments(selected)
+  if (everyCourseSignedOut(selected.length, scrapedOk.size, signedOut)) throw signedOutError()
+  const count = await saveRunCache(entries, selected, scrapedOk)
   await updateBadge()
-  return { count: cache.length, warnings }
+  return { count, warnings }
 }
 
 // ------------------------------- sync -------------------------------
 
 async function runSync(): Promise<SyncReport> {
   const started = Date.now()
+  const previous = await loadReport()
+  const lastOkAt = previous?.ok ? previous.at : previous?.lastOkAt
   try {
     const settings = await loadSettings()
     const all = await refreshCourses()
@@ -169,7 +224,10 @@ async function runSync(): Promise<SyncReport> {
       throw new Error('No courses selected. Choose the courses you want synced.')
     }
 
-    const { entries, scrapedOk, warnings } = await collectAssignments(selected)
+    const { entries, scrapedOk, warnings, signedOut } = await collectAssignments(selected)
+    // The list loaded but every course page bounced to sign-in: the session
+    // expired mid-run. That is a failure, not a success with warnings.
+    if (everyCourseSignedOut(selected.length, scrapedOk.size, signedOut)) throw signedOutError()
     const desired = buildDesiredEvents(entries, settings)
 
     // Diff before saving the new snapshot, and only over courses we actually
@@ -187,8 +245,11 @@ async function runSync(): Promise<SyncReport> {
       )
       if (notices.length > 0) await fireNotices(notices)
     }
+    // Merge, not replace: a course that failed this run keeps its old
+    // fingerprints, so its next good read is not a burst of "new" notices.
+    const prevSnap = ((await chrome.storage.local.get(SNAPSHOT_KEY))[SNAPSHOT_KEY] as Snapshot | undefined) ?? null
     await chrome.storage.local.set({
-      [SNAPSHOT_KEY]: buildSnapshot(readEntries.map((e) => e.assignment)),
+      [SNAPSHOT_KEY]: mergeSnapshot(prevSnap, buildSnapshot(readEntries.map((e) => e.assignment)), scrapedOk),
     })
 
     // Safe to prune: courses we read successfully, plus courses the user turned
@@ -196,7 +257,7 @@ async function runSync(): Promise<SyncReport> {
     const deletable = new Set(scrapedOk)
     for (const c of all) if (!settings.selectedCourseIds.includes(c.id)) deletable.add(c.id)
 
-    await saveAssignmentCache(toCache(readEntries))
+    await saveRunCache(readEntries, selected, scrapedOk)
 
     const backend = new GoogleCalendarBackend(settings.calendarId)
     const { stats, warnings: syncWarnings } = await reconcile(desired, backend, {
@@ -209,18 +270,24 @@ async function runSync(): Promise<SyncReport> {
       at: started,
       ok: true,
       warnings: [...warnings, ...syncWarnings],
+      ...(lastRecovered ? { recovered: true } : {}),
     }
     await saveReport(report)
     await setGoogleConnected(true)
     await updateBadge()
     return report
   } catch (err) {
+    const signedOut = err instanceof Error && err.name === 'NotLoggedInError'
+    const remembered = signedOut ? await rememberedSignIn() : undefined
     const report: SyncReport = {
       created: 0, updated: 0, deleted: 0, skipped: 0, failed: 0,
       at: started,
       ok: false,
       error: err instanceof Error ? err.message : String(err),
       warnings: [],
+      ...(lastOkAt ? { lastOkAt } : {}),
+      ...(signedOut ? { signedOut: true } : {}),
+      ...(remembered ? { remembered } : {}),
     }
     await saveReport(report)
     await updateBadge()
@@ -234,22 +301,21 @@ async function runSync(): Promise<SyncReport> {
  */
 async function updateBadge(): Promise<void> {
   const report = await loadReport()
-  if (report && !report.ok) {
-    void chrome.action.setBadgeText({ text: '!' })
-    void chrome.action.setBadgeBackgroundColor({ color: '#cf222e' })
-    void chrome.action.setTitle({ title: `Sync failed: ${report.error ?? 'unknown error'}` })
-    return
-  }
-
+  const failed = report !== null && !report.ok
   const { items } = await loadAssignmentCache()
   const settings = await loadSettings()
+  // A failed sync keeps the count with a "!" beside it: the cached deadlines
+  // are still right more often than not, and hiding them helps nobody.
   const b = badgeState(items, {
     dismissed: await loadDismissed(),
     hideOverdueAfterDays: settings.hideOverdueAfterDays,
+    syncFailed: failed,
   })
   void chrome.action.setBadgeText({ text: b.text })
   void chrome.action.setBadgeBackgroundColor({ color: b.color })
-  void chrome.action.setTitle({ title: `Docket · ${b.title}` })
+  void chrome.action.setTitle({
+    title: failed ? `Docket · ${b.title}: ${report?.error ?? 'unknown error'}` : `Docket · ${b.title}`,
+  })
 }
 
 async function exportIcs(): Promise<{ ics: string; filename: string; count: number }> {
@@ -363,6 +429,29 @@ chrome.runtime.onStartup.addListener(() => {
 })
 
 registerNotificationClicks()
+
+// After a signed-out failure, the moment the user lands on a Gradescope page
+// that is not part of signing in, sync. Recovery becomes "sign in to
+// Gradescope", which they were about to do anyway. tab.url is only present for
+// pages this extension has host permission for, which is exactly gradescope.com.
+let resyncing = false
+chrome.tabs.onUpdated.addListener((_tabId, info, tab) => {
+  if (info.status !== 'complete' || resyncing) return
+  void (async () => {
+    if (!shouldResyncAfterSignIn(await loadReport(), tab.url)) return
+    resyncing = true
+    try {
+      if (await isGoogleConnected()) await runSync()
+      else await refreshDeadlines().then(() => saveReport({
+        created: 0, updated: 0, deleted: 0, skipped: 0, failed: 0, at: Date.now(), ok: true, warnings: [],
+      })).then(updateBadge)
+    } catch {
+      // still signed out (or offline): the report already says so
+    } finally {
+      resyncing = false
+    }
+  })()
+})
 
 // Keep the alarm in step with the user's schedule preference.
 chrome.storage.onChanged.addListener((changes, area) => {

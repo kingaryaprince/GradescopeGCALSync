@@ -58,6 +58,13 @@ Do not re-investigate these; each was confirmed by probe, not assumption.
 - **That cookie has no `Expires`/`Max-Age`** — it is a session cookie and dies with the
   browser. A server therefore cannot hold it, which is why always-on server sync would require
   storing the user's actual password. See Roadmap.
+- **Gradescope also sets a long-lived `remember_me` cookie.** Seen 2026-11-16 on Arya's
+  account after a school (SAML) sign-in: `remember_me`, expiry 13 months out, `Secure`,
+  `SameSite=None`, not HttpOnly, next to `saml_idp_logout_redirect_url`. So the browser is
+  remembered for about a year even though `_gradescope_session` dies on close. NOT verified:
+  whether a background request uses `remember_me` to start a new session. `fetchCourses`
+  retries once after loading `/` and the report records `recovered` when that works; check
+  Settings > Last sync before building anything heavier.
 - **MV3 service workers have no `DOMParser`.** Fetch + parse run in an offscreen document
   (`chrome.offscreen`, reason `DOM_PARSER`), which also keeps the cookie in play. No visible
   tab is opened.
@@ -92,6 +99,18 @@ duplicate while orphaning the original. Tested in `tests/sync.test.ts`.
 **Only ever touch events tagged as ours.** Every written event carries private extended
 property `gsyncApp=gradescope-sync`; `listManaged()` filters on it. The reconciler assumes
 anything it sees is ours and is free to delete. Never widen that query.
+
+**A failed course keeps its rows everywhere, not just on the calendar.** `carryForward`
+(popup cache) and `mergeSnapshot` (notification snapshot) in `lib/sync.ts` apply the same
+rule as `deletableCourseIds`: a course that failed this run keeps what it had. When any
+selected course failed, `assignmentCacheAt` is left at its old value, because the popup
+shows it as "Deadlines as of ...". If every selected course bounced to sign-in, the run is
+a failure (`everyCourseSignedOut`), never a success with warnings. Tested.
+
+**Signed out is recoverable without a click.** A failed run with `signedOut` makes
+`background.ts` sync on the next `tabs.onUpdated` "complete" for a gradescope.com page
+that is not part of signing in (`shouldResyncAfterSignIn`). `tab.url` is only present
+for hosts we have permission for, which is why no `tabs` permission is needed.
 
 **Deletion is conservative.** Stale events are removed only for courses in
 `deletableCourseIds` — those scraped successfully this run, plus those the user deselected. A
@@ -201,6 +220,12 @@ place, but Google's behavior here has not been tested. Do not promise it.
 
 ## Roadmap / future extensions
 
+- [ ] **Saved Gradescope password (decided against, 2026-11-16).** Schools that sign in
+      through SSO (Berkeley's CalNet looks like SAML, with Duo) cannot be signed in with a
+      stored password at all: the second factor stops it, and automating MFA is off the
+      table. Email-login accounts already get `remember_me` for about a year. A stored
+      password would add breach risk for close to no gain. Revisit only if reports show
+      `remembered.present` while signed out and `recovered` never firing.
 - [ ] **Always-on server-side sync (deferred, deliberately).** The current design needs Chrome
       running to *discover* changes; reminders fire from Google Calendar regardless. True
       always-on requires a backend that authenticates to Gradescope on a schedule — and since
