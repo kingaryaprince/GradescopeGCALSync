@@ -224,11 +224,12 @@ place, but Google's behavior here has not been tested. Do not promise it.
       account signs in with email and password, and `remember_me` did not keep him signed in
       in practice, so the 2026-11-16 decision was reversed for this case. Settings > Stay
       signed in stores the login in `chrome.storage.local` only (`savedLogin`, never sync,
-      never in a report). `fetchCourses` calls `signIn()` only after the `/` retry fails.
-      School (CalNet SAML + Duo) sign-in is still never automated. NOT verified live: whether
-      Gradescope accepts the login post from the extension origin. A 422 in the report means
-      it refused the request (CSRF or origin check); the fallback then is signing in through
-      a background tab with `chrome.scripting`.
+      never in a report). School (CalNet SAML + Duo) sign-in is still never automated.
+      **Verified 2026-11-17: Gradescope rejects the login form posted from the extension
+      origin** (correct password, same field names, it answers with the login page again).
+      So `background.ts` `signInViaTab()` fills Gradescope's own form in a background tab with
+      `chrome.scripting` (new `scripting` permission), then closes the tab. `signIn()` in
+      `client.ts` is the fetch version, kept with its tests but not used by the extension.
 - [ ] **Always-on server-side sync (deferred, deliberately).** The current design needs Chrome
       running to *discover* changes; reminders fire from Google Calendar regardless. True
       always-on requires a backend that authenticates to Gradescope on a schedule — and since

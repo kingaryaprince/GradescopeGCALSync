@@ -1,3 +1,4 @@
+import { LOGIN_URL, SignInFailedError, type SavedLogin } from './lib/gradescope/client'
 import { buildIcs, icsFilename } from './lib/calendar/ics'
 import {
   GoogleCalendarBackend,
@@ -87,12 +88,85 @@ let lastRecovered = false
 /** Set by the last refreshCourses: it signed back in with the saved login. */
 let lastSignedIn = false
 
+/** The background tab used for signing in, so its page loads do not trigger a resync. */
+let signInTabId: number | null = null
+
+function waitForTabLoad(tabId: number, timeoutMs = 20000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(listener)
+      reject(new Error('Gradescope took too long to load'))
+    }, timeoutMs)
+    function listener(id: number, info: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab): void {
+      if (id !== tabId || info.status !== 'complete') return
+      clearTimeout(timer)
+      chrome.tabs.onUpdated.removeListener(listener)
+      resolve(tab.url ?? '')
+    }
+    chrome.tabs.onUpdated.addListener(listener)
+  })
+}
+
+/**
+ * Signs in by filling Gradescope's own login form in a background tab.
+ *
+ * Why a tab: posting the login form from the extension origin was rejected on
+ * 2026-11-17 (Gradescope answered with the login page again, same fields, right
+ * password), most likely an origin check. A real page on gradescope.com passes it.
+ * The password goes only into that page's form. Returns true when signed in.
+ */
+async function signInViaTab(login: SavedLogin): Promise<boolean> {
+  const tab = await chrome.tabs.create({ url: LOGIN_URL, active: false })
+  const tabId = tab.id
+  if (tabId === undefined) return false
+  signInTabId = tabId
+  try {
+    const first = await waitForTabLoad(tabId)
+    if (!/\/login(\?|$)/.test(new URL(first).pathname)) return true
+    const afterSubmit = waitForTabLoad(tabId)
+    const [res] = await chrome.scripting.executeScript({
+      target: { tabId },
+      args: [login.email, login.password],
+      func: (email: string, password: string) => {
+        const form = document.querySelector<HTMLFormElement>('form[action="/login"]')
+        const emailEl = form?.querySelector<HTMLInputElement>('input[name="session[email]"]')
+        const pwEl = form?.querySelector<HTMLInputElement>('input[name="session[password]"]')
+        if (!form || !emailEl || !pwEl) return 'no-form'
+        emailEl.value = email
+        pwEl.value = password
+        const remember = form.querySelector<HTMLInputElement>('input[type="checkbox"][name="session[remember_me]"]')
+        if (remember) remember.checked = true
+        form.requestSubmit()
+        return 'submitted'
+      },
+    })
+    if (res?.result !== 'submitted') return false
+    const url = await afterSubmit
+    return !/^\/login(\/|$)/.test(new URL(url).pathname)
+  } catch {
+    return false
+  } finally {
+    signInTabId = null
+    await chrome.tabs.remove(tabId).catch(() => undefined)
+  }
+}
+
 async function refreshCourses(): Promise<Course[]> {
   const hadCache = (await loadCourseCache()).length > 0
-  const login = await loadLogin()
-  const data = await askOffscreen<ScrapeCoursesData>({ type: 'SCRAPE_COURSES', ...(login ? { login } : {}) })
+  let data: ScrapeCoursesData
+  lastSignedIn = false
+  try {
+    data = await askOffscreen<ScrapeCoursesData>({ type: 'SCRAPE_COURSES' })
+  } catch (err) {
+    const login = err instanceof Error && err.name === 'NotLoggedInError' ? await loadLogin() : null
+    if (!login) throw err
+    if (!(await signInViaTab(login))) {
+      throw new SignInFailedError('wrong email or password, or Gradescope asked for more')
+    }
+    data = await askOffscreen<ScrapeCoursesData>({ type: 'SCRAPE_COURSES' })
+    lastSignedIn = true
+  }
   lastRecovered = data.recovered === true
-  lastSignedIn = data.signedInWithPassword === true
   await saveCourseCache(data.courses)
 
   // First successful load: opt the user into current and upcoming terms only.
@@ -441,8 +515,8 @@ registerNotificationClicks()
 // Gradescope", which they were about to do anyway. tab.url is only present for
 // pages this extension has host permission for, which is exactly gradescope.com.
 let resyncing = false
-chrome.tabs.onUpdated.addListener((_tabId, info, tab) => {
-  if (info.status !== 'complete' || resyncing) return
+chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+  if (info.status !== 'complete' || resyncing || tabId === signInTabId) return
   void (async () => {
     if (!shouldResyncAfterSignIn(await loadReport(), tab.url)) return
     resyncing = true

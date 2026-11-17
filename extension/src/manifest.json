@@ -31,7 +31,8 @@
     "alarms",
     "offscreen",
     "notifications",
-    "cookies"
+    "cookies",
+    "scripting"
   ],
   "host_permissions": [
     "https://www.gradescope.com/*"
