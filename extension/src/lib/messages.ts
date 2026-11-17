@@ -45,6 +45,8 @@ export interface ScrapeCoursesData {
   courses: Course[]
   strategy: string
   warnings: string[]
+  /** The first fetch looked signed out and a retry after loading "/" worked. */
+  recovered?: boolean
 }
 export interface ScrapeAssignmentsData {
   assignments: AssignmentWire[]

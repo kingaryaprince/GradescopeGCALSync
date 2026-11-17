@@ -1,6 +1,8 @@
 import type { CalendarBackend, DesiredEvent, ManagedEvent } from './calendar/backend'
 import { courseIdFromKey } from './calendar/backend'
-import type { Assignment, Course, SyncSettings, SyncStats } from './types'
+import type { Snapshot } from './notify'
+import type { Assignment, Course, SyncReport, SyncSettings, SyncStats } from './types'
+import type { CachedAssignment } from './upcoming'
 
 /** Applies the user's allow/deny keyword filters to an assignment title. */
 export function shouldInclude(title: string, settings: Pick<SyncSettings, 'allowKeywords' | 'denyKeywords'>): boolean {
@@ -124,4 +126,75 @@ export async function reconcile(
   }
 
   return { stats, warnings }
+}
+
+// ------------------------------------------------------------ partial runs
+//
+// A run can read some selected courses and fail on others (a network blip, a
+// course that 500s, the session expiring mid-run). Calendar events already
+// survive that: only courses read this run are deletable. The helpers below give
+// the popup cache and the notification snapshot the same rule, so a failed
+// course neither vanishes from the list nor comes back as a burst of "new
+// assignment" notices.
+
+/**
+ * The popup cache after a run: fresh rows for courses read this run, plus the
+ * previous rows of courses that are still selected but failed to load.
+ * Deselected courses drop out.
+ */
+export function carryForward(
+  fresh: CachedAssignment[],
+  previous: CachedAssignment[],
+  opts: { selectedIds: Iterable<string>; readIds: Iterable<string> },
+): CachedAssignment[] {
+  const selected = new Set(opts.selectedIds)
+  const read = new Set(opts.readIds)
+  const kept = previous.filter((c) => selected.has(c.courseId) && !read.has(c.courseId))
+  const seen = new Set(fresh.map((c) => c.key))
+  return [...fresh, ...kept.filter((c) => !seen.has(c.key))]
+}
+
+/**
+ * The grade snapshot to store after a run. Courses read this run are replaced
+ * wholesale (an assignment that disappeared is gone); every other course keeps
+ * its previous fingerprints.
+ */
+export function mergeSnapshot(
+  prev: Snapshot | null,
+  fresh: Snapshot,
+  readCourseIds: Iterable<string>,
+): Snapshot {
+  const read = new Set(readCourseIds)
+  const out: Snapshot = {}
+  for (const [key, value] of Object.entries(prev ?? {})) {
+    const course = courseIdFromKey(key)
+    if (course === null || !read.has(course)) out[key] = value
+  }
+  return { ...out, ...fresh }
+}
+
+/**
+ * True when nothing was read and every selected course failed because the
+ * session is gone. Reporting that as a success with warnings would write an
+ * empty cache and leave the badge green.
+ */
+export function everyCourseSignedOut(selectedCount: number, readCount: number, signedOutCount: number): boolean {
+  return selectedCount > 0 && readCount === 0 && signedOutCount === selectedCount
+}
+
+/**
+ * Whether a finished page load should trigger a sync: the last run failed
+ * because the browser was signed out, and the user is now on a Gradescope page
+ * that is not part of signing in.
+ */
+export function shouldResyncAfterSignIn(report: SyncReport | null, url: string | undefined): boolean {
+  if (!report || report.ok || !report.signedOut || !url) return false
+  let u: URL
+  try {
+    u = new URL(url)
+  } catch {
+    return false
+  }
+  if (u.protocol !== 'https:' || u.hostname !== 'www.gradescope.com') return false
+  return !/^\/(login|logout|auth|saml|sso|users\/password)(\/|$)/.test(u.pathname)
 }

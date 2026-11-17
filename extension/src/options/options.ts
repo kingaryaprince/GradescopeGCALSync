@@ -119,6 +119,13 @@ function renderReport(r: SyncReport | null): void {
     `Events:  ${r.created} added, ${r.updated} updated, ${r.deleted} removed, ${r.skipped} unchanged, ${r.failed} failed`,
   ]
   if (r.error) lines.push(`Error:   ${r.error}`)
+  if (!r.ok && r.lastOkAt) lines.push(`Last OK: ${new Date(r.lastOkAt).toLocaleString()}`)
+  if (r.remembered) {
+    lines.push(`Remembered sign-in: ${r.remembered.present
+      ? `present${r.remembered.expiresAt ? `, expires ${new Date(r.remembered.expiresAt).toLocaleDateString()}` : ''}`
+      : 'missing (Chrome may be deleting cookies on close)'}`)
+  }
+  if (r.recovered) lines.push('Session:  was signed out, restored automatically by loading Gradescope once')
   if (r.warnings.length > 0) lines.push('', 'Skipped or noted:', ...r.warnings.map((w) => `  • ${w}`))
   el.report.textContent = lines.join('\n')
 }

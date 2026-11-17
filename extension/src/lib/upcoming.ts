@@ -179,8 +179,19 @@ const GREEN = '#1a7f37'
  */
 export function badgeState(
   cached: CachedAssignment[],
-  opts: VisibilityOptions & { soonHours?: number } = {},
+  opts: VisibilityOptions & { soonHours?: number; syncFailed?: boolean } = {},
 ): BadgeState {
+  if (opts.syncFailed) {
+    // Keep the count: the cached list is still the best information there is.
+    // The "!" says it may be out of date.
+    const { syncFailed: _ignored, ...rest } = opts
+    const inner = badgeState(cached, rest)
+    return {
+      text: inner.text ? `${inner.text}!` : '!',
+      color: RED,
+      title: inner.text ? `Last sync failed · ${inner.title}` : 'Last sync failed',
+    }
+  }
   const now = opts.now ?? new Date()
   const soonHours = opts.soonHours ?? 48
   const soonCutoff = now.getTime() + soonHours * 3_600_000
@@ -246,4 +257,25 @@ export function urgencyOf(due: Date, now: Date = new Date()): Urgency {
   if (ms <= 6 * 3_600_000) return 'soon'
   if (ms <= 24 * 3_600_000) return 'today'
   return 'later'
+}
+
+/**
+ * "Deadlines as of 3:15 PM", "as of yesterday 9:02 AM", "as of Mon 3:15 PM",
+ * or "as of Nov 3, 3:15 PM". A bare time with no day read as fresh when it was
+ * days old. Empty when nothing has been cached yet.
+ */
+export function asOfLabel(at: number | null | undefined, now: Date = new Date(), locale?: string): string {
+  if (!at) return ''
+  const then = new Date(at)
+  const time = then
+    .toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' })
+    .replace(/\u202f/g, ' ')
+  const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const days = Math.round((day(now) - day(then)) / 86_400_000)
+  let when: string
+  if (days <= 0) when = time
+  else if (days === 1) when = `yesterday ${time}`
+  else if (days < 7) when = `${then.toLocaleDateString(locale, { weekday: 'short' })} ${time}`
+  else when = `${then.toLocaleDateString(locale, { month: 'short', day: 'numeric' })}, ${time}`
+  return `Deadlines as of ${when}`
 }

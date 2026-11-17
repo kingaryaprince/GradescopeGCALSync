@@ -185,3 +185,130 @@ describe('shouldInclude', () => {
     expect(shouldInclude('Homework 5', { allowKeywords: ['  '], denyKeywords: ['', ' '] })).toBe(true)
   })
 })
+
+// ------------------------------------------------------------ partial runs
+import {
+  carryForward,
+  everyCourseSignedOut,
+  mergeSnapshot,
+  shouldResyncAfterSignIn,
+} from '../src/lib/sync'
+import { fetchCourses, NotLoggedInError, type FetchedPage } from '../src/lib/gradescope/client'
+import type { CachedAssignment } from '../src/lib/upcoming'
+import type { SyncReport } from '../src/lib/types'
+
+const row = (courseId: string, n: number): CachedAssignment => ({
+  key: `gsync:v1:c${courseId}:a${n}`, title: `HW ${n}`, courseId, courseShortName: `C${courseId}`,
+  dueIso: '2026-11-20T07:59:00.000Z', submitted: false,
+})
+
+describe('carryForward (a course that fails keeps its rows)', () => {
+  it('keeps previous rows of a selected course that failed this run', () => {
+    const prev = [row('100', 1), row('200', 2), row('200', 3)]
+    const fresh = [row('100', 1), row('100', 4)]
+    const out = carryForward(fresh, prev, { selectedIds: ['100', '200'], readIds: ['100'] })
+    expect(out.map((r) => r.key)).toEqual([
+      'gsync:v1:c100:a1', 'gsync:v1:c100:a4', 'gsync:v1:c200:a2', 'gsync:v1:c200:a3',
+    ])
+  })
+
+  it('drops rows of a course that was read and no longer lists them', () => {
+    const out = carryForward([], [row('100', 1)], { selectedIds: ['100'], readIds: ['100'] })
+    expect(out).toEqual([])
+  })
+
+  it('drops rows of a deselected course even when it was not read', () => {
+    const out = carryForward([row('100', 1)], [row('300', 9)], { selectedIds: ['100'], readIds: ['100'] })
+    expect(out.map((r) => r.courseId)).toEqual(['100'])
+  })
+})
+
+describe('mergeSnapshot (no notification burst after a failed course)', () => {
+  it('keeps fingerprints of courses not read this run', () => {
+    const prev = { 'gsync:v1:c100:a1': '-', 'gsync:v1:c200:a2': '18/20' }
+    const fresh = { 'gsync:v1:c100:a1': '9/10' }
+    expect(mergeSnapshot(prev, fresh, ['100'])).toEqual({
+      'gsync:v1:c200:a2': '18/20', 'gsync:v1:c100:a1': '9/10',
+    })
+  })
+
+  it('removes assignments that vanished from a course that was read', () => {
+    const prev = { 'gsync:v1:c100:a1': '-', 'gsync:v1:c100:a2': '-' }
+    expect(mergeSnapshot(prev, { 'gsync:v1:c100:a1': '-' }, ['100'])).toEqual({ 'gsync:v1:c100:a1': '-' })
+  })
+
+  it('a failed course does not look new on its next good read', async () => {
+    const { diffForNotifications } = await import('../src/lib/notify')
+    const c200: Course = { ...course, id: '200', shortName: 'DATA 101' }
+    const a2 = asg({ key: 'gsync:v1:c200:a2', courseId: '200', assignmentId: '2', title: 'Project 3' })
+    // run 1: both read. run 2: course 200 fails. run 3: both read again.
+    let snap = mergeSnapshot(null, { 'gsync:v1:c100:a501': '-', 'gsync:v1:c200:a2': '-' }, ['100', '200'])
+    snap = mergeSnapshot(snap, { 'gsync:v1:c100:a501': '-' }, ['100'])
+    const notices = diffForNotifications(snap, [{ assignment: asg(), course }, { assignment: a2, course: c200 }],
+      { notifyGrades: true, notifyNewAssignments: true })
+    expect(notices).toEqual([])
+  })
+})
+
+describe('everyCourseSignedOut', () => {
+  it('is true only when nothing was read and every selected course bounced to sign-in', () => {
+    expect(everyCourseSignedOut(3, 0, 3)).toBe(true)
+    expect(everyCourseSignedOut(3, 0, 2)).toBe(false)      // one failed some other way
+    expect(everyCourseSignedOut(3, 1, 2)).toBe(false)
+    expect(everyCourseSignedOut(0, 0, 0)).toBe(false)
+  })
+})
+
+describe('shouldResyncAfterSignIn', () => {
+  const failed: SyncReport = {
+    created: 0, updated: 0, deleted: 0, skipped: 0, failed: 0, at: 1, ok: false, warnings: [], signedOut: true,
+  }
+  it('fires on a normal Gradescope page after a signed-out failure', () => {
+    expect(shouldResyncAfterSignIn(failed, 'https://www.gradescope.com/account')).toBe(true)
+    expect(shouldResyncAfterSignIn(failed, 'https://www.gradescope.com/')).toBe(true)
+    expect(shouldResyncAfterSignIn(failed, 'https://www.gradescope.com/courses/100')).toBe(true)
+  })
+  it('waits while the user is still signing in', () => {
+    expect(shouldResyncAfterSignIn(failed, 'https://www.gradescope.com/login')).toBe(false)
+    expect(shouldResyncAfterSignIn(failed, 'https://www.gradescope.com/auth/saml/berkeley')).toBe(false)
+    expect(shouldResyncAfterSignIn(failed, 'https://www.gradescope.com/saml/consume')).toBe(false)
+  })
+  it('ignores other sites, other failures and good reports', () => {
+    expect(shouldResyncAfterSignIn(failed, 'https://auth.berkeley.edu/cas/login')).toBe(false)
+    expect(shouldResyncAfterSignIn(failed, 'https://www.gradescope.com.evil.example/')).toBe(false)
+    expect(shouldResyncAfterSignIn(failed, undefined)).toBe(false)
+    expect(shouldResyncAfterSignIn({ ...failed, signedOut: false }, 'https://www.gradescope.com/')).toBe(false)
+    expect(shouldResyncAfterSignIn({ ...failed, ok: true }, 'https://www.gradescope.com/')).toBe(false)
+    expect(shouldResyncAfterSignIn(null, 'https://www.gradescope.com/')).toBe(false)
+  })
+})
+
+describe('fetchCourses session retry', () => {
+  const page = (html: string, finalUrl = 'https://www.gradescope.com/account'): FetchedPage => ({
+    doc: new DOMParser().parseFromString(html, 'text/html'), finalUrl, status: 200,
+  })
+  const login = () => page('<form action="/login"><input id="session_password"></form>', 'https://www.gradescope.com/login')
+  const dash = () => page('<div class="courseList"></div>')
+
+  it('loads "/" once and retries when the first answer is the login page', async () => {
+    const calls: string[] = []
+    const answers = [login(), dash(), dash()]
+    const r = await fetchCourses(async (url) => { calls.push(url); return answers.shift()! })
+    expect(calls).toEqual([
+      'https://www.gradescope.com/account', 'https://www.gradescope.com/', 'https://www.gradescope.com/account',
+    ])
+    expect(r.recovered).toBe(true)
+  })
+
+  it('still throws NotLoggedInError when the retry is signed out too', async () => {
+    const answers = [login(), login(), login()]
+    await expect(fetchCourses(async () => answers.shift()!)).rejects.toBeInstanceOf(NotLoggedInError)
+  })
+
+  it('does not retry when already signed in', async () => {
+    let n = 0
+    const r = await fetchCourses(async () => { n++; return dash() })
+    expect(n).toBe(1)
+    expect(r.recovered).toBeUndefined()
+  })
+})

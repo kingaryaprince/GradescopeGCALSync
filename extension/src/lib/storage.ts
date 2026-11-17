@@ -48,8 +48,9 @@ export async function loadAssignmentCache(): Promise<{ items: CachedAssignment[]
   return { items: got[KEYS.assignments] ?? [], at: got[KEYS.assignmentsAt] ?? null }
 }
 
-export async function saveAssignmentCache(items: CachedAssignment[]): Promise<void> {
-  await chrome.storage.local.set({ [KEYS.assignments]: items, [KEYS.assignmentsAt]: Date.now() })
+/** `at` is when the data was read; defaults to now. */
+export async function saveAssignmentCache(items: CachedAssignment[], at: number = Date.now()): Promise<void> {
+  await chrome.storage.local.set({ [KEYS.assignments]: items, [KEYS.assignmentsAt]: at })
 }
 
 /**

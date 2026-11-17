@@ -336,3 +336,40 @@ describe('collapsing the overdue group', () => {
     expect(v.hiddenCount).toBe(1)
   })
 })
+
+// ------------------------------------------------------------ freshness
+import { asOfLabel } from '../src/lib/upcoming'
+
+describe('asOfLabel', () => {
+  const now = new Date(2026, 10, 16, 16, 30)                 // Mon Nov 16 2026, 4:30 PM local
+  const at = (d: number, h: number, m: number) => new Date(2026, 10, d, h, m).getTime()
+
+  it('says nothing before anything is cached', () => {
+    expect(asOfLabel(null, now, 'en-US')).toBe('')
+  })
+  it('shows only the time for today', () => {
+    expect(asOfLabel(at(16, 15, 15), now, 'en-US')).toBe('Deadlines as of 3:15 PM')
+  })
+  it('says yesterday', () => {
+    expect(asOfLabel(at(15, 9, 2), now, 'en-US')).toBe('Deadlines as of yesterday 9:02 AM')
+  })
+  it('names the weekday within a week', () => {
+    expect(asOfLabel(at(12, 15, 15), now, 'en-US')).toBe('Deadlines as of Thu 3:15 PM')
+  })
+  it('gives the date beyond a week', () => {
+    expect(asOfLabel(at(3, 15, 15), now, 'en-US')).toBe('Deadlines as of Nov 3, 3:15 PM')
+  })
+})
+
+describe('badgeState after a failed sync', () => {
+  const soon = a({ dueIso: iso('2026-09-03T12:00:00') })
+  it('keeps the count and adds a failure marker', () => {
+    const b = badgeState([soon], { now: NOW, syncFailed: true })
+    expect(b.text).toBe('1!')
+    expect(b.color).toBe('#cf222e')
+    expect(b.title).toBe('Last sync failed · 1 assignment due in the next 48 hours')
+  })
+  it('shows only the marker when nothing is due', () => {
+    expect(badgeState([], { now: NOW, syncFailed: true }).text).toBe('!')
+  })
+})
