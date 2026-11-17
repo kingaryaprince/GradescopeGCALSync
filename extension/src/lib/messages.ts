@@ -1,3 +1,4 @@
+import type { SavedLogin } from './gradescope/client'
 import type { Assignment, Course, SyncReport } from './types'
 
 /**
@@ -28,7 +29,7 @@ export function fromWire(a: AssignmentWire): Assignment {
 }
 
 export type Request =
-  | { type: 'SCRAPE_COURSES' }
+  | { type: 'SCRAPE_COURSES'; login?: SavedLogin }
   | { type: 'SCRAPE_ASSIGNMENTS'; course: Course }
   | { type: 'SYNC_NOW' }
   | { type: 'REFRESH_COURSES' }
@@ -47,6 +48,7 @@ export interface ScrapeCoursesData {
   warnings: string[]
   /** The first fetch looked signed out and a retry after loading "/" worked. */
   recovered?: boolean
+  signedInWithPassword?: boolean
 }
 export interface ScrapeAssignmentsData {
   assignments: AssignmentWire[]

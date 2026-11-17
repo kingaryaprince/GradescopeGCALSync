@@ -1,4 +1,5 @@
 import type { CachedAssignment } from './upcoming'
+import type { SavedLogin } from './gradescope/client'
 import { DEFAULT_SETTINGS, type Course, type SyncReport, type SyncSettings } from './types'
 
 const KEYS = {
@@ -9,6 +10,7 @@ const KEYS = {
   assignments: 'assignmentCache',
   assignmentsAt: 'assignmentCacheAt',
   dismissed: 'dismissedKeys',
+  login: 'savedLogin',
 } as const
 
 export async function loadSettings(): Promise<SyncSettings> {
@@ -87,4 +89,23 @@ export async function setGoogleConnected(v: boolean): Promise<void> {
 export async function isGoogleConnected(): Promise<boolean> {
   const got = await chrome.storage.local.get(KEYS.connected)
   return got[KEYS.connected] === true
+}
+
+/**
+ * The saved Gradescope login lives in chrome.storage.local only: never
+ * storage.sync, never in settings, never in a report. Sent nowhere except
+ * gradescope.com when a sync finds the browser signed out.
+ */
+export async function loadLogin(): Promise<SavedLogin | null> {
+  const got = await chrome.storage.local.get(KEYS.login)
+  const v = got[KEYS.login]
+  return v && typeof v.email === 'string' && typeof v.password === 'string' ? v : null
+}
+
+export async function saveLogin(login: SavedLogin): Promise<void> {
+  await chrome.storage.local.set({ [KEYS.login]: login })
+}
+
+export async function clearLogin(): Promise<void> {
+  await chrome.storage.local.remove(KEYS.login)
 }

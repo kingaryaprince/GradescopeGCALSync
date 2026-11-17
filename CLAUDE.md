@@ -220,12 +220,15 @@ place, but Google's behavior here has not been tested. Do not promise it.
 
 ## Roadmap / future extensions
 
-- [ ] **Saved Gradescope password (decided against, 2026-11-16).** Schools that sign in
-      through SSO (Berkeley's CalNet looks like SAML, with Duo) cannot be signed in with a
-      stored password at all: the second factor stops it, and automating MFA is off the
-      table. Email-login accounts already get `remember_me` for about a year. A stored
-      password would add breach risk for close to no gain. Revisit only if reports show
-      `remembered.present` while signed out and `recovered` never firing.
+- [x] **Saved Gradescope password, email-login accounts only (built 2026-11-17).** Arya's
+      account signs in with email and password, and `remember_me` did not keep him signed in
+      in practice, so the 2026-11-16 decision was reversed for this case. Settings > Stay
+      signed in stores the login in `chrome.storage.local` only (`savedLogin`, never sync,
+      never in a report). `fetchCourses` calls `signIn()` only after the `/` retry fails.
+      School (CalNet SAML + Duo) sign-in is still never automated. NOT verified live: whether
+      Gradescope accepts the login post from the extension origin. A 422 in the report means
+      it refused the request (CSRF or origin check); the fallback then is signing in through
+      a background tab with `chrome.scripting`.
 - [ ] **Always-on server-side sync (deferred, deliberately).** The current design needs Chrome
       running to *discover* changes; reminders fire from Google Calendar regardless. True
       always-on requires a backend that authenticates to Gradescope on a schedule — and since

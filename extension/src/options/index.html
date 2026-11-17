@@ -145,6 +145,28 @@
       </section>
 
       <section class="card">
+        <p class="card-title">Stay signed in</p>
+        <label class="field">
+          <span>Gradescope email</span>
+          <input id="login-email" type="email" autocomplete="username" />
+        </label>
+        <label class="field">
+          <span>Gradescope password</span>
+          <input id="login-password" type="password" autocomplete="current-password" />
+        </label>
+        <p>
+          <button id="login-save">Save login</button>
+          <button id="login-clear">Remove</button>
+          <span id="login-state" class="muted"></span>
+        </p>
+        <p class="hint">
+          Optional. If a sync finds you signed out, Docket signs back in with this login instead of
+          waiting for you. Only for accounts that sign in with an email and password, not school
+          sign-in. Kept on this computer only: never synced, and sent nowhere but gradescope.com.
+        </p>
+      </section>
+
+      <section class="card">
         <p class="card-title">Last sync</p>
         <pre id="report" class="report muted">No sync yet.</pre>
       </section>

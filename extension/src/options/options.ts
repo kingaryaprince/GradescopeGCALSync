@@ -2,7 +2,7 @@ import type { CalendarSummary } from '../lib/calendar/gcal'
 import type { Request, Response } from '../lib/messages'
 import { OAUTH_SETUP_HINT, isOAuthConfigured } from '../lib/oauth'
 import { applyTheme, initTheme } from '../lib/theme'
-import { clearDismissed, isGoogleConnected, loadDismissed, loadReport, loadSettings, saveSettings } from '../lib/storage'
+import { clearDismissed, clearLogin, isGoogleConnected, loadDismissed, loadLogin, loadReport, loadSettings, saveLogin, saveSettings } from '../lib/storage'
 import type { SyncReport, SyncSettings } from '../lib/types'
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T
@@ -33,6 +33,11 @@ const el = {
   save: $<HTMLButtonElement>('save'),
   saved: $<HTMLSpanElement>('saved'),
   theme: $<HTMLDivElement>('theme'),
+  loginEmail: $<HTMLInputElement>('login-email'),
+  loginPassword: $<HTMLInputElement>('login-password'),
+  loginSave: $<HTMLButtonElement>('login-save'),
+  loginClear: $<HTMLButtonElement>('login-clear'),
+  loginState: $<HTMLSpanElement>('login-state'),
 }
 
 function send<T>(msg: Request): Promise<T> {
@@ -125,6 +130,7 @@ function renderReport(r: SyncReport | null): void {
       ? `present${r.remembered.expiresAt ? `, expires ${new Date(r.remembered.expiresAt).toLocaleDateString()}` : ''}`
       : 'missing (Chrome may be deleting cookies on close)'}`)
   }
+  if (r.signedInWithPassword) lines.push('Session:  was signed out, signed back in with the saved login')
   if (r.recovered) lines.push('Session:  was signed out, restored automatically by loading Gradescope once')
   if (r.warnings.length > 0) lines.push('', 'Skipped or noted:', ...r.warnings.map((w) => `  • ${w}`))
   el.report.textContent = lines.join('\n')
@@ -270,3 +276,34 @@ void (async () => {
   renderReport(await loadReport())
   await refreshConnection()
 })()
+
+// ---------------------------- saved login ----------------------------
+
+async function renderLogin(): Promise<void> {
+  const login = await loadLogin()
+  el.loginEmail.value = login?.email ?? ''
+  el.loginPassword.value = ''
+  el.loginPassword.placeholder = login ? 'Saved. Type a new one to replace it.' : ''
+  el.loginState.textContent = login ? 'Saved on this computer.' : 'No login saved.'
+}
+
+el.loginSave.addEventListener('click', () => {
+  void (async () => {
+    const email = el.loginEmail.value.trim()
+    const typed = el.loginPassword.value
+    const existing = await loadLogin()
+    const password = typed || (existing && existing.email === email ? existing.password : '')
+    if (!email || !password) {
+      el.loginState.textContent = 'Enter both an email and a password.'
+      return
+    }
+    await saveLogin({ email, password })
+    await renderLogin()
+  })()
+})
+
+el.loginClear.addEventListener('click', () => {
+  void clearLogin().then(renderLogin)
+})
+
+void renderLogin()

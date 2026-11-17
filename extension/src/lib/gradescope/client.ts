@@ -3,6 +3,13 @@ import { parseAssignments, parseCourses } from './parse'
 
 export const GRADESCOPE_ORIGIN = 'https://www.gradescope.com'
 export const DASHBOARD_URL = `${GRADESCOPE_ORIGIN}/account`
+export const LOGIN_URL = `${GRADESCOPE_ORIGIN}/login`
+
+/** An email-and-password Gradescope login, saved on this computer by the user. */
+export interface SavedLogin {
+  email: string
+  password: string
+}
 
 /** Thrown when Gradescope bounces us to the login page. */
 export class NotLoggedInError extends Error {
@@ -19,6 +26,15 @@ export interface FetchedPage {
 }
 
 export type HtmlFetcher = (url: string) => Promise<FetchedPage>
+export type FormPoster = (url: string, body: URLSearchParams) => Promise<FetchedPage>
+
+/** Same name as NotLoggedInError so every signed-out path treats it alike. */
+export class SignInFailedError extends Error {
+  constructor(detail: string) {
+    super(`Docket could not sign you back in to Gradescope (${detail}). Check the saved login in Settings, or sign in on gradescope.com.`)
+    this.name = 'NotLoggedInError'
+  }
+}
 
 /**
  * Fetches and parses a Gradescope page using the browser's existing session.
@@ -44,6 +60,25 @@ export const browserFetcher: HtmlFetcher = async (url) => {
   }
 }
 
+export const browserPoster: FormPoster = async (url, body) => {
+  const res = await fetch(url, {
+    method: 'POST',
+    credentials: 'include',
+    redirect: 'follow',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'text/html,application/xhtml+xml',
+    },
+    body,
+  })
+  const html = await res.text()
+  return {
+    doc: new DOMParser().parseFromString(html, 'text/html'),
+    finalUrl: res.url || url,
+    status: res.status,
+  }
+}
+
 /** Gradescope answers an unauthenticated request with the login page. */
 export function isSignedOut(page: FetchedPage): boolean {
   if (page.status === 401 || page.status === 403) return true
@@ -53,6 +88,43 @@ export function isSignedOut(page: FetchedPage): boolean {
 
 function assertLoggedIn(page: FetchedPage): void {
   if (isSignedOut(page)) throw new NotLoggedInError()
+}
+
+/**
+ * Signs in with a saved email and password, the way the gradescope.com login
+ * form does: load /login for its CSRF token, then post the form.
+ *
+ * Only for accounts with their own Gradescope password. School sign-in
+ * (CalNet SAML with Duo) cannot be automated and is not attempted.
+ *
+ * NOT verified against the live site: whether Gradescope accepts this post
+ * from the extension origin. A 422 means it rejected the request itself (CSRF
+ * or origin check), not the password; the error says which.
+ */
+export async function signIn(
+  login: SavedLogin,
+  fetcher: HtmlFetcher = browserFetcher,
+  poster: FormPoster = browserPoster,
+): Promise<void> {
+  const page = await fetcher(LOGIN_URL)
+  if (!isSignedOut(page)) return
+  const form = page.doc.querySelector('form[action*="/login"]')
+  const token =
+    form?.querySelector<HTMLInputElement>('input[name="authenticity_token"]')?.value ??
+    page.doc.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content
+  if (!token) throw new SignInFailedError('no sign-in form on gradescope.com/login')
+  const body = new URLSearchParams({
+    utf8: '\u2713',
+    authenticity_token: token,
+    'session[email]': login.email,
+    'session[password]': login.password,
+    'session[remember_me]': '1',
+    commit: 'Log In',
+  })
+  const after = await poster(LOGIN_URL, body)
+  if (after.status === 422) throw new SignInFailedError('Gradescope refused the request, HTTP 422')
+  if (after.status >= 500) throw new SignInFailedError(`Gradescope returned ${after.status}`)
+  if (isSignedOut(after)) throw new SignInFailedError('wrong email or password, or Gradescope asked for more')
 }
 
 /**
@@ -68,17 +140,28 @@ function assertLoggedIn(page: FetchedPage): void {
  */
 export async function fetchCourses(
   fetcher: HtmlFetcher = browserFetcher,
-): Promise<ParseResult<Course> & { recovered?: boolean }> {
+  opts: { login?: SavedLogin; poster?: FormPoster } = {},
+): Promise<ParseResult<Course> & { recovered?: boolean; signedInWithPassword?: boolean }> {
   let page = await fetcher(DASHBOARD_URL)
   let recovered = false
+  let signedInWithPassword = false
   if (isSignedOut(page)) {
     await fetcher(`${GRADESCOPE_ORIGIN}/`)
     page = await fetcher(DASHBOARD_URL)
     recovered = !isSignedOut(page)
   }
+  if (isSignedOut(page) && opts.login) {
+    await signIn(opts.login, fetcher, opts.poster)
+    page = await fetcher(DASHBOARD_URL)
+    signedInWithPassword = !isSignedOut(page)
+  }
   assertLoggedIn(page)
   if (page.status >= 500) throw new Error(`Gradescope returned ${page.status}. Try again shortly.`)
-  return { ...parseCourses(page.doc), ...(recovered ? { recovered } : {}) }
+  return {
+    ...parseCourses(page.doc),
+    ...(recovered ? { recovered } : {}),
+    ...(signedInWithPassword ? { signedInWithPassword } : {}),
+  }
 }
 
 export async function fetchAssignments(

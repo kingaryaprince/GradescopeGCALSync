@@ -143,4 +143,6 @@ export interface SyncReport extends SyncStats {
   remembered?: { present: boolean; expiresAt?: number }
   /** A signed-out first fetch was retried after loading the Gradescope home page, and worked. */
   recovered?: boolean
+  /** Signed out, then signed back in with the saved login. */
+  signedInWithPassword?: boolean
 }

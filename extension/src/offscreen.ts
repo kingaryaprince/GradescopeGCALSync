@@ -16,10 +16,11 @@ chrome.runtime.onMessage.addListener(
       try {
         switch (msg.type) {
           case 'SCRAPE_COURSES': {
-            const r = await fetchCourses()
+            const r = await fetchCourses(undefined, msg.login ? { login: msg.login } : {})
             sendResponse(ok({
               courses: r.items, strategy: r.strategy, warnings: r.warnings,
               ...(r.recovered ? { recovered: true } : {}),
+              ...(r.signedInWithPassword ? { signedInWithPassword: true } : {}),
             }))
             break
           }

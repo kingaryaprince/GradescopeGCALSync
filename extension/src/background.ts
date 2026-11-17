@@ -19,6 +19,7 @@ import {
   saveSettings,
   setGoogleConnected,
   isGoogleConnected,
+  loadLogin,
 } from './lib/storage'
 import { buildSnapshot, diffForNotifications, fireNotices, registerNotificationClicks, type Snapshot } from './lib/notify'
 import {
@@ -83,11 +84,15 @@ async function askOffscreen<T>(msg: Request): Promise<T> {
 
 /** Set by the last refreshCourses: its first fetch was signed out and the retry worked. */
 let lastRecovered = false
+/** Set by the last refreshCourses: it signed back in with the saved login. */
+let lastSignedIn = false
 
 async function refreshCourses(): Promise<Course[]> {
   const hadCache = (await loadCourseCache()).length > 0
-  const data = await askOffscreen<ScrapeCoursesData>({ type: 'SCRAPE_COURSES' })
+  const login = await loadLogin()
+  const data = await askOffscreen<ScrapeCoursesData>({ type: 'SCRAPE_COURSES', ...(login ? { login } : {}) })
   lastRecovered = data.recovered === true
+  lastSignedIn = data.signedInWithPassword === true
   await saveCourseCache(data.courses)
 
   // First successful load: opt the user into current and upcoming terms only.
@@ -271,6 +276,7 @@ async function runSync(): Promise<SyncReport> {
       ok: true,
       warnings: [...warnings, ...syncWarnings],
       ...(lastRecovered ? { recovered: true } : {}),
+      ...(lastSignedIn ? { signedInWithPassword: true } : {}),
     }
     await saveReport(report)
     await setGoogleConnected(true)
